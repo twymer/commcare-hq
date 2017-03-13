@@ -5,6 +5,21 @@ from corehq.apps.userreports.util import truncate_value
 from corehq.form_processor.interfaces.dbaccessors import LedgerAccessors
 from fluff import TYPE_INTEGER
 
+from datetime import datetime
+
+
+def timeit(method):
+    def timed(*args, **kw):
+        ts = datetime.now()
+        result = method(*args, **kw)
+        te = datetime.now()
+        seconds = (te - ts).total_seconds()
+        if seconds > 0.1:
+            indicator = args[0]
+            print('{} {} ({}, {}) {:.2} sec'.format(indicator.column.id, method.__name__, args, kw, seconds))
+        return result
+    return timed
+
 
 class Column(object):
 
@@ -71,6 +86,7 @@ class BooleanIndicator(SingleColumnIndicator):
         super(BooleanIndicator, self).__init__(display_name, Column(column_id, datatype=TYPE_INTEGER))
         self.filter = filter
 
+    @timeit
     def get_values(self, item, context=None):
         value = 1 if self.filter(item, context) else 0
         return [ColumnValue(self.column, value)]
@@ -85,6 +101,7 @@ class RawIndicator(SingleColumnIndicator):
         super(RawIndicator, self).__init__(display_name, column)
         self.getter = getter
 
+    @timeit
     def get_values(self, item, context=None):
         return [ColumnValue(self.column, self.getter(item, context))]
 
@@ -101,6 +118,7 @@ class CompoundIndicator(ConfigurableIndicator):
     def get_columns(self):
         return [c for ind in self.indicators for c in ind.get_columns()]
 
+    @timeit
     def get_values(self, item, context=None):
         return [val for ind in self.indicators for val in ind.get_values(item, context)]
 
@@ -132,6 +150,7 @@ class LedgerBalancesIndicator(ConfigurableIndicator):
     def get_columns(self):
         return [self._make_column(product_code) for product_code in self.product_codes]
 
+    @timeit
     def get_values(self, item, context=None):
         case_id = self.case_id_expression(item)
         domain = context.root_doc['domain']
