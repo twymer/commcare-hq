@@ -188,7 +188,10 @@ class JsonApiLog(models.Model):
         """
         Pretty-print the request body
         """
-        return pformat(self.request_body)
+        try:
+            return pformat(json.loads(self.request_body))
+        except ValueError:
+            return self.request_body
 
     @property
     def pp_response_body(self):
