@@ -119,6 +119,8 @@ class DataSetMap(Document):
         elif self.frequency == SEND_FREQUENCY_QUARTERLY:
             date_range = get_last_quarter()
             period = date_range.startdate.strftime('%Y') + 'Q' + str((date_range.startdate.month // 3) + 1)
+        else:
+            raise ValueError('Unrecognised frequency for sending DHIS2 DataSets.')
         ucr_data = get_ucr_data(report_config, date_filter, date_range)
 
         datavalues = (self.get_datavalues(row) for row in ucr_data)  # one UCR row may have many DataValues
