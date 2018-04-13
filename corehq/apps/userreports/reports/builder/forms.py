@@ -12,9 +12,11 @@ from django.forms.utils import flatatt
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext as _
-from corehq.apps.app_manager.app_schemas.case_properties import get_case_properties
-from corehq.apps.userreports.app_manager.data_source_meta import DATA_SOURCE_TYPE_CHOICES, \
-    get_data_source_doc_type, make_case_data_source_filter, make_form_data_source_filter, get_app_data_source_meta
+from corehq.apps.app_manager.app_schemas.case_properties import get_all_case_properties_for_case_type
+from corehq.apps.userreports.app_manager.data_source_meta import (
+    DATA_SOURCE_TYPE_CHOICES,
+    get_app_data_source_meta,
+)
 
 from corehq.apps.userreports.reports.builder.columns import (
     QuestionColumnOption,
@@ -326,11 +328,8 @@ class DataSourceBuilder(object):
             self.source_form = self.data_source_meta.source_form
             self.source_xform = self.data_source_meta.source_xform
         if self.source_type == 'case':
-            prop_map = get_case_properties(
-                self.app, [self.source_id], defaults=list(DEFAULT_CASE_PROPERTY_DATATYPES),
-                include_parent_properties=True,
-            )
-            self.case_properties = sorted(set(prop_map[self.source_id]) | {'closed'})
+            props = get_all_case_properties_for_case_type(domain, source_id) + ['closed']
+            self.case_properties = sorted(set(props))
 
     @property
     @memoized
