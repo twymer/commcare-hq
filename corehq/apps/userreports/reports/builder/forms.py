@@ -1,45 +1,36 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
-from collections import namedtuple, OrderedDict
+
 import datetime
-from itertools import chain
 import json
 import uuid
-from django.conf import settings
+from collections import namedtuple, OrderedDict
+from itertools import chain
+
+import six
+from crispy_forms import layout as crispy
+from crispy_forms.bootstrap import StrictButton
+from crispy_forms.helper import FormHelper
 from django import forms
+from django.conf import settings
 from django.forms import Widget
 from django.forms.utils import flatatt
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext as _
+from memoized import memoized
+
 from corehq.apps.app_manager.app_schemas.case_properties import get_all_case_properties_for_case_type
+from corehq.apps.app_manager.fields import ApplicationDataSourceUIHelper
+from corehq.apps.app_manager.models import Application
+from corehq.apps.hqwebapp import crispy as hqcrispy
+from corehq.apps.userreports import tasks
 from corehq.apps.userreports.app_manager.data_source_meta import (
     DATA_SOURCE_TYPE_CHOICES,
     get_app_data_source_meta,
 )
-
-from corehq.apps.userreports.reports.builder.columns import (
-    QuestionColumnOption,
-    CountColumn,
-    MultiselectQuestionColumnOption,
-    FormMetaColumnOption,
-    OwnernameComputedCasePropertyOption,
-    UsernameComputedCasePropertyOption,
-    CasePropertyColumnOption,
-)
-from crispy_forms import layout as crispy
-from crispy_forms.bootstrap import StrictButton
-from crispy_forms.helper import FormHelper
-from corehq.apps.hqwebapp import crispy as hqcrispy
-
-from corehq.apps.app_manager.fields import ApplicationDataSourceUIHelper
-from corehq.apps.app_manager.models import (
-    Application,
-    Form,
-)
-from corehq.apps.app_manager.xform import XForm
-from corehq.apps.userreports import tasks
 from corehq.apps.userreports.app_manager.helpers import clean_table_name
+from corehq.apps.userreports.exceptions import BadBuilderConfigError
 from corehq.apps.userreports.models import (
     DataSourceBuildInformation,
     DataSourceConfiguration,
@@ -52,7 +43,15 @@ from corehq.apps.userreports.reports.builder import (
     FORM_METADATA_PROPERTIES,
     get_filter_format_from_question_type,
 )
-from corehq.apps.userreports.exceptions import BadBuilderConfigError
+from corehq.apps.userreports.reports.builder.columns import (
+    QuestionColumnOption,
+    CountColumn,
+    MultiselectQuestionColumnOption,
+    FormMetaColumnOption,
+    OwnernameComputedCasePropertyOption,
+    UsernameComputedCasePropertyOption,
+    CasePropertyColumnOption,
+)
 from corehq.apps.userreports.reports.builder.const import (
     COMPUTED_OWNER_NAME_PROPERTY_ID,
     COMPUTED_USER_NAME_PROPERTY_ID,
@@ -71,8 +70,7 @@ from corehq.apps.userreports.reports.builder.const import (
 from corehq.apps.userreports.sql import get_column_name
 from corehq.apps.userreports.ui.fields import JsonField
 from corehq.apps.userreports.util import has_report_builder_access
-from memoized import memoized
-import six
+
 
 # This dict maps filter types from the report builder frontend to UCR filter types
 REPORT_BUILDER_FILTER_TYPE_MAP = {
