@@ -326,6 +326,8 @@ class DataSourceBuilder(object):
             self.source_form = self.data_source_meta.source_form
             self.source_xform = self.data_source_meta.source_xform
         if self.source_type == 'case':
+            # Results in a lot more case properties, but still not the ones we want.
+            # TODO: Still doesn't fix 273596
             props = get_all_case_properties_for_case_type(domain, source_id) + ['closed']
             self.case_properties = sorted(set(props))
 
