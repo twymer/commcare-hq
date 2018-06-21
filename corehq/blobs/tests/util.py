@@ -7,13 +7,27 @@ from uuid import uuid4
 
 import corehq.blobs as blobs
 from corehq.blobs.fsdb import FilesystemBlobDB
+from corehq.blobs.models import BlobMeta
 from corehq.blobs.s3db import S3BlobDB
 from corehq.blobs.migratingdb import MigratingBlobDB
 from corehq.blobs.util import random_url_id
+from corehq.sql_db.routers import db_for_read_write
 
 
 def get_id():
     return random_url_id(8)
+
+
+def new_meta(**kw):
+    kw.setdefault("domain", "test")
+    kw.setdefault("parent_id", "test")
+    kw.setdefault("type_code", blobs.CODES.form)
+    return BlobMeta(**kw)
+
+
+def get_meta(*args, **kw):
+    db = db_for_read_write(BlobMeta)
+    return BlobMeta.objects.using(db).get(*args, **kw)
 
 
 class TemporaryBlobDBMixin(object):

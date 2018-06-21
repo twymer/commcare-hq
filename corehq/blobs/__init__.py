@@ -48,3 +48,37 @@ class BlobInfo(namedtuple("BlobInfo", ["identifier", "length", "digest"])):
     def md5_hash(self):
         if self.digest and self.digest.startswith("md5-"):
             return self.digest[4:]
+
+
+class CODES:
+    """Blob type codes.
+
+    A unique blob type code should be assigned to each new area of HQ
+    that will have blobs associated with it. This is mainly intended for
+    analysis purposes (how much blob storage is used per type code?),
+    although it is also useful when debugging to trace a blob identifier
+    back to its parent.
+
+    When adding codes for new models, always use a unique code that has
+    never been used before, preferably one more than the highest
+    existing code. Once a type code has been used it should never be
+    reused for another purpose.
+    """
+    _default = 0     # legacy, do not use
+
+    # SQL forms + XFormInstance, XFormArchived, XFormDeprecated,
+    # XFormDuplicate, XFormInstance-Deleted
+    form = 1
+    form_attachment = 2
+
+    application = 3  # Application, Application-Deleted, LinkedApplication
+    multimedia = 4   # CommCareMultimedia
+    data_import = 5  # case_importer
+
+    # FormExportInstance, CaseExportInstance, SavedBasicExport
+    data_export = 6
+
+    invoice = 7      # InvoicePdf
+    restore = 8
+    fixture = 9      # domain-fixtures
+    tempfile = 10
