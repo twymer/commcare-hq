@@ -1,11 +1,8 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
-from os.path import commonprefix, join, sep
 import zipfile
 
-from corehq.blobs import DEFAULT_BUCKET
-from corehq.blobs.exceptions import BadName
-from corehq.blobs.interface import AbstractBlobDB, SAFENAME
+from corehq.blobs.interface import AbstractBlobDB
 
 
 class ZipBlobDB(AbstractBlobDB):
@@ -13,35 +10,32 @@ class ZipBlobDB(AbstractBlobDB):
     """
 
     def __init__(self, slug, domain):
+        super(ZipBlobDB, self).__init__()
         self.zipname = get_export_filename(slug, domain)
         self._zipfile = None
 
-    def put(self, content, identifier, bucket=DEFAULT_BUCKET, timeout=None):
+    def put(self, content, **blob_meta_args):
         raise NotImplementedError
 
-    def get(self, identifier, bucket=DEFAULT_BUCKET):
+    def get(self, path):
         raise NotImplementedError
 
-    def delete(self, *args, **kw):
+    def delete(self, path):
         raise NotImplementedError
 
-    def bulk_delete(self, paths):
+    def bulk_delete(self, metas):
         raise NotImplementedError
 
-    def copy_blob(self, content, info, bucket):
-        path = self.get_path(info.identifier, bucket)
-        self.zipfile.writestr(path, content.read())
+    def copy_blob(self, content, meta):
+        # NOTE this does not save all metadata, and therefore
+        # the zip file cannot be used to fully rebuild the
+        # blob db state in another environment.
+        self.zipfile.writestr(meta.path, content.read())
 
-    def get_path(self, identifier=None, bucket=DEFAULT_BUCKET):
-        if identifier is None:
-            return bucket
-        return safejoin(bucket, identifier)
-
-    def exists(self, identifier, bucket=DEFAULT_BUCKET):
-        path = self.get_path(identifier, bucket)
+    def exists(self, path):
         return path in self.zipfile.namelist()
 
-    def size(self, identifier, bucket=DEFAULT_BUCKET):
+    def size(self, path):
         raise NotImplementedError
 
     @property
@@ -53,15 +47,6 @@ class ZipBlobDB(AbstractBlobDB):
     def close(self):
         if self._zipfile:
             self._zipfile.close()
-
-
-def safejoin(root, subpath):
-    if not SAFENAME.match(subpath):
-        raise BadName("unsafe path name: %r" % subpath)
-    path = join(root, subpath)
-    if commonprefix([root + sep, path]) != root + sep:
-        raise BadName("invalid relative path: %r" % subpath)
-    return path
 
 
 def get_export_filename(slug, domain):
