@@ -2,17 +2,12 @@
 """
 from __future__ import absolute_import
 from __future__ import unicode_literals
-import base64
 import os
-import shutil
 from collections import namedtuple
-from hashlib import md5
 from os.path import commonprefix, exists, isabs, isdir, dirname, join, realpath, sep
 
-from corehq.blobs import BlobInfo, DEFAULT_BUCKET
 from corehq.blobs.exceptions import BadName, NotFound
 from corehq.blobs.interface import AbstractBlobDB, SAFENAME
-from corehq.blobs.util import set_blob_expire_object
 from corehq.util.datadog.gauges import datadog_counter
 from io import open
 
@@ -24,106 +19,92 @@ class FilesystemBlobDB(AbstractBlobDB):
     """
 
     def __init__(self, rootdir):
+        super(FilesystemBlobDB, self).__init__()
         assert isabs(rootdir), rootdir
         self.rootdir = rootdir
 
-    def put(self, content, identifier, bucket=DEFAULT_BUCKET, timeout=None):
-        path = self.get_path(identifier, bucket)
-        dirpath = dirname(path)
+    def put(self, content, **blob_meta_args):
+        meta = self.metadb.new(**blob_meta_args)
+        fs_path = self.get_path(meta.path)
+        dirpath = dirname(fs_path)
         if not isdir(dirpath):
             os.makedirs(dirpath)
         length = 0
-        digest = md5()
-        with open(path, "wb") as fh:
+        with open(fs_path, "wb") as fh:
             while True:
                 chunk = content.read(CHUNK_SIZE)
                 if not chunk:
                     break
                 fh.write(chunk)
                 length += len(chunk)
-                digest.update(chunk)
-        b64digest = base64.b64encode(digest.digest())
-        if timeout is not None:
-            set_blob_expire_object(bucket, identifier, length, timeout)
-        datadog_counter('commcare.blobs.added.count')
-        datadog_counter('commcare.blobs.added.bytes', value=length)
-        return BlobInfo(identifier, length, "md5-" + b64digest)
+        meta.content_length = length
+        self.metadb.put(meta)
+        return meta
 
-    def get(self, identifier, bucket=DEFAULT_BUCKET):
-        path = self.get_path(identifier, bucket)
-        if not exists(path):
+    def get(self, path):
+        fs_path = self.get_path(path)
+        if not exists(fs_path):
             datadog_counter('commcare.blobdb.notfound')
-            raise NotFound(identifier, bucket)
-        return open(path, "rb")
+            raise NotFound(path)
+        return open(fs_path, "rb")
 
-    def size(self, identifier, bucket=DEFAULT_BUCKET):
-        path = self.get_path(identifier, bucket)
-        if not exists(path):
+    def size(self, path):
+        fs_path = self.get_path(path)
+        if not exists(fs_path):
             datadog_counter('commcare.blobdb.notfound')
-            raise NotFound(identifier, bucket)
-        return _count_size(path).size
+            raise NotFound(path)
+        return _count_size(fs_path).size
 
-    def exists(self, identifier, bucket=DEFAULT_BUCKET):
-        path = self.get_path(identifier, bucket)
-        return exists(path)
+    def exists(self, path):
+        return exists(self.get_path(path))
 
-    def delete(self, *args, **kw):
-        identifier, bucket = self.get_args_for_delete(*args, **kw)
-        if identifier is None:
-            path = safejoin(self.rootdir, bucket)
-            remove = shutil.rmtree
+    def delete(self, path):
+        fs_path = self.get_path(path)
+        file_exists = exists(fs_path)
+        if file_exists:
+            size = _count_size(fs_path).size
+            os.remove(fs_path)
         else:
-            path = self.get_path(identifier, bucket)
-            remove = os.remove
-        if not exists(path):
-            return False
-        cs = _count_size(path)
-        datadog_counter('commcare.blobs.deleted.count', value=cs.count)
-        datadog_counter('commcare.blobs.deleted.bytes', value=cs.size)
-        remove(path)
-        return True
+            size = 0
+        self.metadb.delete(path, size)
+        return file_exists
 
-    def bulk_delete(self, paths):
+    def bulk_delete(self, metas):
         success = True
-        deleted_count = 0
-        deleted_bytes = 0
-        for path in paths:
-            if not exists(path):
+        for meta in metas:
+            fs_path = self.get_path(meta.path)
+            if not exists(fs_path):
                 success = False
             else:
-                cs = _count_size(path)
-                deleted_count += cs.count
-                deleted_bytes += cs.size
-                os.remove(path)
-        datadog_counter('commcare.blobs.deleted.count', value=deleted_count)
-        datadog_counter('commcare.blobs.deleted.bytes', value=deleted_bytes)
+                os.remove(fs_path)
+        self.metadb.bulk_delete(metas)
         return success
 
-    def copy_blob(self, content, info, bucket):
-        path = self.get_path(info.identifier, bucket)
-        dirpath = dirname(path)
+    def copy_blob(self, content, meta):
+        fs_path = self.get_path(meta.path)
+        dirpath = dirname(fs_path)
         if not isdir(dirpath):
             os.makedirs(dirpath)
-        with open(path, "wb") as fh:
+        with open(fs_path, "wb") as fh:
             while True:
                 chunk = content.read(CHUNK_SIZE)
                 if not chunk:
                     break
                 fh.write(chunk)
 
-    def get_path(self, identifier=None, bucket=DEFAULT_BUCKET):
-        bucket_path = safejoin(self.rootdir, bucket)
-        if identifier is None:
-            return bucket_path
-        return safejoin(bucket_path, identifier)
+    def get_path(self, path):
+        return safejoin(self.rootdir, path)
 
 
 def safejoin(root, subpath):
     """Join root to subpath ensuring that the result is actually inside root
     """
-    root = realpath(root)
-    if not SAFENAME.match(subpath):
+    if (subpath.startswith(("/", ".")) or
+            "/../" in subpath or
+            subpath.endswith("/..") or
+            not SAFENAME.match(subpath)):
         raise BadName("unsafe path name: %r" % subpath)
+    root = realpath(root)
     path = realpath(join(root, subpath))
     if commonprefix([root + sep, path]) != root + sep:
         raise BadName("invalid relative path: %r" % subpath)
