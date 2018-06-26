@@ -14,10 +14,6 @@ from corehq.blobs.util import random_url_id
 from corehq.sql_db.routers import db_for_read_write
 
 
-def get_id():
-    return random_url_id(8)
-
-
 def new_meta(**kw):
     kw.setdefault("domain", "test")
     kw.setdefault("parent_id", "test")

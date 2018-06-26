@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
-from corehq.blobs import DEFAULT_BUCKET
 from corehq.blobs.exceptions import InvalidContext
 
 
@@ -12,8 +11,8 @@ class AtomicBlobs(object):
         with AtomicBlobs(get_blob_db()) as db:
             # do stuff here that puts or deletes blobs
             db.delete(old_blob_id)
-            info = db.put(content, new_blob_id)
-            save(info, deleted=old_blob_id)
+            meta = db.put(content, new_blob_id)
+            save(meta, deleted=old_blob_id)
 
     If an exception occurs inside the `AtomicBlobs` context then all
     blob write operations (puts and deletes) will be rolled back.
@@ -24,18 +23,18 @@ class AtomicBlobs(object):
         self.puts = None
         self.deletes = None
 
-    def put(self, content, identifier, bucket=DEFAULT_BUCKET):
+    def put(self, *args, **kw):
         if self.puts is None:
             raise InvalidContext("AtomicBlobs context is not active")
-        info = self.db.put(content, identifier, bucket=bucket)
-        self.puts.append((info, bucket))
-        return info
+        meta = self.db.put(*args, **kw)
+        self.puts.append(meta)
+        return meta
 
     def get(self, *args, **kw):
         return self.db.get(*args, **kw)
 
-    def delete(self, *args, **kw):
-        """Delete a blob or bucket of blobs
+    def delete(self, path):
+        """Delete a blob
 
         NOTE blobs will not actually be deleted until the context exits,
         so subsequent gets inside the context will return an object even
@@ -43,8 +42,7 @@ class AtomicBlobs(object):
         """
         if self.puts is None:
             raise InvalidContext("AtomicBlobs context is not active")
-        self.db.get_args_for_delete(*args, **kw)  # validate args
-        self.deletes.append((args, kw))
+        self.deletes.append(path)
         return None  # result is unknown
 
     def copy_blob(self, *args, **kw):
@@ -60,8 +58,7 @@ class AtomicBlobs(object):
         self.puts = None
         self.deletes = None
         if exc_type is None:
-            for args, kw in deletes:
-                self.db.delete(*args, **kw)
+            for path in deletes:
+                self.db.delete(path)
         else:
-            for info, bucket in puts:
-                self.db.delete(info.identifier, bucket)
+            self.db.bulk_delete(puts)
