@@ -7,6 +7,7 @@ from itertools import chain
 
 from corehq.sql_db.routers import get_cursor
 from corehq.sql_db.util import split_list_by_db_partition
+from corehq.util.datadog.gauges import datadog_counter
 
 from .models import BlobMeta
 
@@ -45,11 +46,15 @@ class MetaDB(object):
         if timeout is not None:
             if "expires_on" in blob_meta_args:
                 raise ValueError("pass one: timeout or expires_on")
-            meta.expires_on = datetime.utcnow() + timedelta(minutes=timeout)
+            meta.expires_on = _utcnow() + timedelta(minutes=timeout)
         return meta
 
     def put(self, meta):
         """Save `BlobMeta` in the metadata database"""
+        if meta.expires_on is not None:
+            datadog_counter('commcare.temp_blobs.count')
+            datadog_counter('commcare.temp_blobs.bytes_added',
+                            value=meta.content_length)
         meta.save()
         length = meta.content_length
         datadog_counter('commcare.blobs.added.count')

@@ -42,4 +42,5 @@ class Migration(migrations.Migration):
             index=partial_index.PartialIndex(fields=['expires_on'], name='blobs_blobm_expires_64b92d_partial', unique=False, where='expires_on IS NOT NULL', where_postgresql=b'', where_sqlite=b''),
         ),
         migrator.get_migration('delete_blob_meta.sql'),
+        migrator.get_migration('get_expired_blobs.sql'),
     ]
