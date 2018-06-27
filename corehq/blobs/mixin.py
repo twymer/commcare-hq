@@ -26,15 +26,32 @@ from memoized import memoized
 import six
 
 
-class BlobMeta(DocumentSchema):
-    id = StringProperty()
+class BlobMetaPointer(DocumentSchema):
+    path = StringProperty()
+    blobmeta_id = IntegerProperty()
     content_type = StringProperty()
     content_length = IntegerProperty()
-    digest = StringProperty()
 
     @property
     def info(self):
-        return BlobInfo(self.id, self.content_length, self.digest)
+        return BlobInfo(self.path, self.content_length)
+
+    @classmethod
+    def _from_attachment(cls, data):
+        return cls(
+            content_type=data.get("content_type"),
+            content_length=data.get("length"),
+        )
+
+    @staticmethod
+    def _normalize_json(dbname, doc_id, data):
+        if "path" in data:
+            return data
+        return {
+            "path": join(dbname, safe_id(doc_id), data["id"]),
+            "content_length": data.get("content_length"),
+            "content_type": data.get("content_type"),
+        }
 
 
 class BlobMixin(Document):
@@ -42,7 +59,8 @@ class BlobMixin(Document):
     class Meta(object):
         abstract = True
 
-    external_blobs = DictProperty(BlobMeta)
+    # TODO evaluate all uses of `external_blobs`
+    external_blobs = DictProperty(BlobMetaPointer)
 
     # When true, fallback to couch on fetch and delete if blob is not
     # found in blobdb. Set this to True on subclasses that are in the
@@ -52,27 +70,49 @@ class BlobMixin(Document):
 
     _atomic_blobs = None
 
-    def _blobdb_bucket(self):
-        if self._id is None:
-            raise ResourceNotFound(
-                "cannot manipulate attachment on unidentified document")
-        return join(_get_couchdb_name(type(self)), safe_id(self._id))
+    @classmethod
+    def wrap(cls, data):
+        doc_id = safe_id(data["_id"])
+        dbname = _get_couchdb_name(cls)
+        normalize = BlobMetaPointer._normalize_json
+        if data.get("external_blobs"):
+            blobs = {}
+            normalized = False
+            for key, value in data["external_blobs"].items():
+                if value["doc_type"] == "BlobMetaPointer":
+                    blobs[key] = value
+                else:
+                    blobs[key] = normalize(dbname, doc_id, value)
+                    normalized = True
+            if normalized:
+                data = data.copy()
+                data["external_blobs"] = blobs
+        return super(BlobMixin, cls).wrap(data)
+
+    @property
+    def _blobdb_type_code(self):
+        """Blob DB type code
+
+        This is an abstract attribute that must be set on non-abstract
+        subclasses of `BlobMixin`. Its value should be one of the codes
+        in `corehq.blobs.CODES`.
+        """
+        raise NotImplementedError(
+            "abstract class attribute %s._blobdb_type_code is missing" %
+            type(self).__name__
+        )
 
     @property
     def blobs(self):
-        """Get a dictionary of BlobMeta objects keyed by attachment name
+        """Get a dictionary of BlobMetaPointer objects keyed by attachment name
 
         Includes CouchDB attachments if `_migrating_blobs_from_couch` is true.
         The returned value should not be mutated.
         """
         if not self._migrating_blobs_from_couch or not self._attachments:
             return self.external_blobs
-        value = {name: BlobMeta(
-            id=None,
-            content_length=info.get("length", None),
-            content_type=info.get("content_type", None),
-            digest=info.get("digest", None),
-        ) for name, info in six.iteritems(self._attachments)}
+        value = {name: BlobMetaPointer._from_attachment(info)
+            for name, info in six.iteritems(self._attachments)}
         value.update(self.external_blobs)
         return value
 
@@ -91,6 +131,8 @@ class BlobMixin(Document):
             name = getattr(content, "name", None)
         if name is None:
             raise InvalidAttachment("cannot save attachment without name")
+        if self._id is None:
+            raise ResourceNotFound("cannot put attachment on unidentified document")
         old_meta = self.blobs.get(name)
 
         if isinstance(content, six.text_type):
@@ -98,23 +140,28 @@ class BlobMixin(Document):
         elif isinstance(content, six.binary_type):
             content = BytesIO(content)
 
-        bucket = self._blobdb_bucket()
         # do we need to worry about BlobDB reading beyond content_length?
-        info = db.put(content, get_short_identifier(), bucket=bucket)
-        self.external_blobs[name] = BlobMeta(
-            id=info.identifier,
+        meta = db.put(
+            content,
+            domain=self.domain,
+            parent_id=self._id,
+            type_code=self._blobdb_type_code,
             content_type=content_type,
-            content_length=info.length,
-            digest=info.digest,
+        )
+        self.external_blobs[name] = BlobMetaPointer(
+            path=meta.path,
+            blobmeta_id=meta.id,
+            content_type=content_type,
+            content_length=meta.content_length,
         )
         if self._migrating_blobs_from_couch and self._attachments:
             self._attachments.pop(name, None)
         if self._atomic_blobs is None:
             self.save()
-            if old_meta and old_meta.id:
-                db.delete(old_meta.id, bucket)
-        elif old_meta and old_meta.id:
-            self._atomic_blobs[name].append(old_meta)
+            if old_meta and old_meta.path:
+                db.delete(old_meta.path)
+        elif old_meta and old_meta.path:
+            self._atomic_blobs[name].append(old_meta.path)
         return True
 
     @document_method
@@ -128,19 +175,19 @@ class BlobMixin(Document):
         db = get_blob_db()
         try:
             try:
-                meta = self.external_blobs[name]
+                path = self.external_blobs[name].path
             except KeyError:
                 if self._migrating_blobs_from_couch:
                     return super(BlobMixin, self) \
                         .fetch_attachment(name, stream=stream)
                 raise NotFound
-            blob = db.get(meta.id, self._blobdb_bucket())
+            blob = db.get(path)
         except NotFound:
             raise ResourceNotFound(
                 "{model} {model_id} attachment: {name!r}".format(
                     model=type(self).__name__,
-                    name=name,
                     model_id=self._id,
+                    name=name,
                 ))
         if stream:
             return blob
@@ -166,10 +213,9 @@ class BlobMixin(Document):
         meta = self.external_blobs.pop(name, None)
         if meta is not None:
             if self._atomic_blobs is None:
-                bucket = self._blobdb_bucket()
-                deleted = get_blob_db().delete(meta.id, bucket) or deleted
+                deleted = get_blob_db().delete(meta.path) or deleted
             else:
-                self._atomic_blobs[name].append(meta)
+                self._atomic_blobs[name].append(meta.path)
                 deleted = True
         if self._atomic_blobs is None:
             self.save()
@@ -203,7 +249,6 @@ class BlobMixin(Document):
             atomicity = self._atomic_blobs
             self._atomic_blobs = new_deleted = defaultdict(list)
             db = get_blob_db()
-            bucket = self._blobdb_bucket()
             success = False
             try:
                 yield
@@ -214,8 +259,8 @@ class BlobMixin(Document):
                 # delete new blobs that were not saved
                 for name, meta in six.iteritems(self.external_blobs):
                     old_meta = old_external_blobs.get(name)
-                    if old_meta is None or meta.id != old_meta.id:
-                        db.delete(meta.id, bucket)
+                    if old_meta is None or meta.path != old_meta.path:
+                        db.delete(meta.path)
                 self.external_blobs = old_external_blobs
                 if self._migrating_blobs_from_couch:
                     self._attachments = old_attachments
@@ -227,13 +272,13 @@ class BlobMixin(Document):
                 deleted = set()
                 blobs = self.blobs
                 for name, meta in list(six.iteritems(old_external_blobs)):
-                    if name not in blobs or meta.id != blobs[name].id:
-                        db.delete(meta.id, bucket)
-                        deleted.add(meta.id)
+                    if name not in blobs or meta.path != blobs[name].path:
+                        db.delete(meta.path)
+                        deleted.add(meta.path)
                 # delete newly created blobs that were overwritten or deleted
-                for meta in chain.from_iterable(six.itervalues(new_deleted)):
-                    if meta.id not in deleted:
-                        db.delete(meta.id, bucket)
+                for path in chain.from_iterable(six.itervalues(new_deleted)):
+                    if path not in deleted:
+                        db.delete(path)
         return atomic_blobs_context()
 
 
@@ -256,33 +301,41 @@ class BlobHelper(object):
     not recommended while it is wrapped in this class.
     """
 
-    def __init__(self, doc, database):
+    def __init__(self, doc, database, type_code, domain=None):
         if doc.get("_id") is None:
             raise TypeError("BlobHelper requires a real _id")
         self._id = doc["_id"]
         self.doc = doc
         self.doc_type = doc["doc_type"]
+        self.domain = doc.get("domain", domain)
+        if self.domain is None:
+            raise ValueError("domain is required")
+        if domain is not None and domain != self.domain:
+            raise ValueError("domain mismatch: %s != %s" % (self.domain, domain))
+        self._blobdb_type_code = type_code
         self.database = database
         self.couch_only = "external_blobs" not in doc
         self._migrating_blobs_from_couch = bool(doc.get("_attachments")) \
             and not self.couch_only
         self._attachments = doc.get("_attachments")
-        blobs = self.get_external_blobs(doc, {})
-        self.external_blobs = {n: BlobMeta.wrap(m.copy())
+        blobs = self.get_external_blobs(doc, self.database.dbname, {})
+        self.external_blobs = {n: BlobMetaPointer.wrap(m.copy())
                                for n, m in six.iteritems(blobs)}
 
     _atomic_blobs = None
 
     @staticmethod
-    def get_external_blobs(doc, default=None):
-        return doc.get("external_blobs", default)
+    def get_external_blobs(doc, dbname, default=None):
+        blobs = doc.get("external_blobs", default)
+        if blobs is default:
+            return blobs
+        doc_id = doc["_id"]
+        return {n: BlobMetaPointer._normalize_json(dbname, doc_id, m)
+                for n, m in six.iteritems(blobs)}
 
     @property
     def blobs(self):
         return BlobMixin.blobs.fget(self)
-
-    def _blobdb_bucket(self):
-        return join(self.database.dbname, safe_id(self._id))
 
     def put_attachment(self, content, name=None, *args, **kw):
         if self._attachments is None and self.couch_only:
@@ -369,11 +422,10 @@ class DeferredBlobMixin(BlobMixin):
             value = dict(value)
             for name, info in six.iteritems(self._deferred_blobs):
                 if info is not None:
-                    value[name] = BlobMeta(
-                        id=None,
+                    value[name] = BlobMetaPointer(
+                        path=None,
                         content_type=info.get("content_type", None),
                         content_length=info.get("content_length", None),
-                        digest=None,
                     )
                 else:
                     value.pop(name, None)
@@ -524,13 +576,13 @@ def bulk_atomic_blobs(docs):
                     else:
                         meta = doc.external_blobs.pop(name, None)
                         if meta is not None:
-                            delete_blobs.append((meta, doc._blobdb_bucket()))
+                            delete_blobs.append(meta.path)
                         doc._deferred_blobs.pop(name)
                 assert not doc._deferred_blobs, doc._deferred_blobs
         yield
         db = get_blob_db()
-        for meta, bucket in delete_blobs:
-            db.delete(meta.id, bucket)
+        for path in delete_blobs:
+            db.delete(path)
 
 
 @memoized
