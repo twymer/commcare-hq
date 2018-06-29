@@ -1441,6 +1441,9 @@ class CouchUser(Document, DjangoUserMixin, IsMemberOfMixin, UnicodeMixIn, EulaMi
         for doc in docs:
             doc['last_modified'] = utcnow
         super(CouchUser, cls).save_docs(docs, **kwargs)
+        for doc in docs:
+            user = doc if isinstance(doc, CouchUser) else CouchUser.wrap_correctly(doc)
+            user.clear_quickcache_for_user()
 
     bulk_save = save_docs
 
