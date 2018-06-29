@@ -26,11 +26,11 @@ class ZipBlobDB(AbstractBlobDB):
     def bulk_delete(self, metas):
         raise NotImplementedError
 
-    def copy_blob(self, content, meta):
+    def copy_blob(self, content, path):
         # NOTE this does not save all metadata, and therefore
         # the zip file cannot be used to fully rebuild the
         # blob db state in another environment.
-        self.zipfile.writestr(meta.path, content.read())
+        self.zipfile.writestr(path, content.read())
 
     def exists(self, path):
         return path in self.zipfile.namelist()

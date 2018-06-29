@@ -299,7 +299,7 @@ class BlobDbBackendMigrator(BaseDocMigrator):
                 self.not_found += 1
         else:
             with content:
-                self.db.copy_blob(content, meta)
+                self.db.copy_blob(content, meta.path)
         return True
 
     def processing_complete(self, skipped):
@@ -338,7 +338,7 @@ class BlobDbBackendExporter(BaseDocProcessor):
             self.not_found += 1
         else:
             with content:
-                self.db.copy_blob(content, meta)
+                self.db.copy_blob(content, meta.path)
         return True
 
     def processing_complete(self):

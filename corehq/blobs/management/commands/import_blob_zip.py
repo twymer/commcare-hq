@@ -18,14 +18,8 @@ class Command(BaseCommand):
 
     def handle(self, zipname, **options):
         # do we need to import BlobMeta records too?
-        class meta:
-            path = None
-
         from_zip = zipfile.ZipFile(zipname)
-
         to_db = get_blob_db()
-
         for path in from_zip.namelist():
-            meta.path = path
             blob = io.BytesIO(from_zip.read(path))
-            to_db.copy_blob(blob, meta)
+            to_db.copy_blob(blob, path)

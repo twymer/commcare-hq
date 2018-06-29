@@ -943,7 +943,7 @@ class PutInOldCopyToNewBlobDB(TemporaryMigratingBlobDB):
     def put(self, content, *args, **kw):
         meta = self.old_db.put(content, *args, **kw)
         content.seek(0)
-        self.copy_blob(content, meta)
+        self.copy_blob(content, meta.path)
         return meta
 
 

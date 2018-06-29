@@ -38,7 +38,7 @@ class TestMigratingBlobDB(get_base_class()):
         content = BytesIO(b"fs content")
         meta = self.fsdb.put(content, meta=new_meta())
         content.seek(0)
-        self.db.copy_blob(content, meta)
+        self.db.copy_blob(content, meta.path)
         self.assertEndsWith(self.fsdb.get_path(meta.path), "/" + meta.path)
         with replattr(self.fsdb, "get", blow_up, sigcheck=False):
             with self.assertRaises(Boom):
@@ -49,7 +49,7 @@ class TestMigratingBlobDB(get_base_class()):
     def test_delete_from_both_fs_and_s3(self):
         meta = self.fsdb.put(BytesIO(b"content"), meta=new_meta())
         with self.fsdb.get(meta.path) as content:
-            self.db.copy_blob(content, meta)
+            self.db.copy_blob(content, meta.path)
         self.assertTrue(self.db.delete(meta.path))
         with self.assertRaises(mod.NotFound):
             self.db.get(meta.path)

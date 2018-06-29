@@ -80,8 +80,8 @@ class FilesystemBlobDB(AbstractBlobDB):
         self.metadb.bulk_delete(metas)
         return success
 
-    def copy_blob(self, content, meta):
-        fs_path = self.get_path(meta.path)
+    def copy_blob(self, content, path):
+        fs_path = self.get_path(path)
         dirpath = dirname(fs_path)
         if not isdir(dirpath):
             os.makedirs(dirpath)

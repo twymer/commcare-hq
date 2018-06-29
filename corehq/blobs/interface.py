@@ -99,10 +99,10 @@ class AbstractBlobDB(six.with_metaclass(ABCMeta, object)):
         raise NotImplementedError
 
     @abstractmethod
-    def copy_blob(self, content, meta):
+    def copy_blob(self, content, path):
         """Copy blob from other blob database
 
         :param content: File-like blob content object.
-        :param meta: `BlobMeta` object.
+        :param path: Blob path.
         """
         raise NotImplementedError

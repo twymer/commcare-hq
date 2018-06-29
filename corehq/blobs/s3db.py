@@ -121,9 +121,9 @@ class S3BlobDB(AbstractBlobDB):
             self.metadb.bulk_delete(chunk)
         return success
 
-    def copy_blob(self, content, meta):
-        with self.report_timing('copy_blobdb', meta.path):
-            self._s3_bucket(create=True).upload_fileobj(content, meta.path)
+    def copy_blob(self, content, path):
+        with self.report_timing('copy_blobdb', path):
+            self._s3_bucket(create=True).upload_fileobj(content, path)
 
     def _s3_bucket(self, create=False):
         if create and not self._s3_bucket_exists:
