@@ -71,14 +71,16 @@ class CODES:
     form = 1
     form_attachment = 2
 
-    application = 3  # Application, Application-Deleted, LinkedApplication
-    multimedia = 4   # CommCareMultimedia
-    data_import = 5  # case_importer
+    domain = 3          # Domain
+    application = 4     # Application, Application-Deleted, LinkedApplication
+    multimedia = 5      # CommCareMultimedia
+    commcarebuild = 6   # CommCareBuild
+    data_import = 7     # case_importer
 
     # FormExportInstance, CaseExportInstance, SavedBasicExport
-    data_export = 6
+    data_export = 8
 
-    invoice = 7      # InvoicePdf
-    restore = 8
-    fixture = 9      # domain-fixtures
-    tempfile = 10
+    invoice = 9         # InvoicePdf
+    restore = 10
+    fixture = 11        # domain-fixtures
+    tempfile = 12

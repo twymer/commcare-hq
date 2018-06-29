@@ -10,10 +10,15 @@ from hashlib import sha1
 from itertools import chain
 from os.path import join
 
-from corehq.blobs import BlobInfo, get_blob_db
+from corehq.blobs import BlobInfo, get_blob_db, CODES  # noqa
 from corehq.blobs.exceptions import AmbiguousBlobStorageError, NotFound
 from corehq.blobs.interface import SAFENAME
-from corehq.blobs.util import ClosingContextProxy, document_method, random_url_id
+from corehq.blobs.util import (
+    classproperty,
+    ClosingContextProxy,
+    document_method,
+    random_url_id,
+)
 from couchdbkit.exceptions import InvalidAttachment, ResourceNotFound
 from dimagi.ext.couchdbkit import (
     Document,
@@ -89,8 +94,8 @@ class BlobMixin(Document):
                 data["external_blobs"] = blobs
         return super(BlobMixin, cls).wrap(data)
 
-    @property
-    def _blobdb_type_code(self):
+    @classproperty
+    def _blobdb_type_code(cls):
         """Blob DB type code
 
         This is an abstract attribute that must be set on non-abstract
@@ -99,7 +104,7 @@ class BlobMixin(Document):
         """
         raise NotImplementedError(
             "abstract class attribute %s._blobdb_type_code is missing" %
-            type(self).__name__
+            cls.__name__
         )
 
     @property
@@ -117,7 +122,8 @@ class BlobMixin(Document):
         return value
 
     @document_method
-    def put_attachment(self, content, name=None, content_type=None, content_length=None):
+    def put_attachment(self, content, name=None, content_type=None,
+                       content_length=None, domain=None):
         """Put attachment in blob database
 
         See `get_short_identifier()` for restrictions on the upper bound
@@ -133,6 +139,12 @@ class BlobMixin(Document):
             raise InvalidAttachment("cannot save attachment without name")
         if self._id is None:
             raise ResourceNotFound("cannot put attachment on unidentified document")
+        if hasattr(self, "domain"):
+            if domain is not None and self.domain != domain:
+                raise ValueError("domain mismatch: %s != %s" % (self.domain, domain))
+            domain = self.domain
+        elif domain is None:
+            raise ValueError("domain attribute or argument is required")
         old_meta = self.blobs.get(name)
 
         if isinstance(content, six.text_type):
@@ -143,7 +155,7 @@ class BlobMixin(Document):
         # do we need to worry about BlobDB reading beyond content_length?
         meta = db.put(
             content,
-            domain=self.domain,
+            domain=domain or self.domain,
             parent_id=self._id,
             type_code=self._blobdb_type_code,
             content_type=content_type,
@@ -307,11 +319,10 @@ class BlobHelper(object):
         self._id = doc["_id"]
         self.doc = doc
         self.doc_type = doc["doc_type"]
-        self.domain = doc.get("domain", domain)
-        if self.domain is None:
-            raise ValueError("domain is required")
-        if domain is not None and domain != self.domain:
-            raise ValueError("domain mismatch: %s != %s" % (self.domain, domain))
+        if "domain" in doc:
+            self.domain = doc["domain"]
+        elif self.doc_type == "Domain":
+            self.domain = doc["name"]
         self._blobdb_type_code = type_code
         self.database = database
         self.couch_only = "external_blobs" not in doc
@@ -476,7 +487,7 @@ class DeferredBlobMixin(BlobMixin):
         return super(DeferredBlobMixin, self).delete_attachment(name) or deleted
 
     def deferred_put_attachment(self, content, name=None, content_type=None,
-                                content_length=None):
+                                content_length=None, domain=None):
         """Queue attachment to be persisted on save
 
         WARNING this loads the entire blob content into memory. Use of
@@ -501,6 +512,7 @@ class DeferredBlobMixin(BlobMixin):
             "content": content,
             "content_type": content_type,
             "content_length": length,
+            "domain": domain or getattr(self, "domain", None),
         }
 
     def deferred_delete_attachment(self, name):

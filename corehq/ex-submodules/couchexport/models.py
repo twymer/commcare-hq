@@ -12,7 +12,7 @@ from dimagi.ext.couchdbkit import Document, DictProperty,\
     StringListProperty, DateTimeProperty, SchemaProperty, BooleanProperty, IntegerProperty
 import json
 import couchexport
-from corehq.blobs.mixin import BlobMixin
+from corehq.blobs.mixin import BlobMixin, CODES
 from couchexport.exceptions import CustomExportValidationError
 from couchexport.files import ExportFiles
 from couchexport.transforms import identity
@@ -953,6 +953,7 @@ class SavedBasicExport(BlobMixin, Document):
     last_updated = DateTimeProperty()
     last_accessed = DateTimeProperty()
     is_safe = BooleanProperty(default=False)
+    _blobdb_type_code = CODES.data_export
 
     @property
     def size(self):
