@@ -42,14 +42,6 @@ def _get_migrating_db(new_db, old_db):
     return MigratingBlobDB(new_db, old_db)
 
 
-class BlobInfo(namedtuple("BlobInfo", ["identifier", "length", "digest"])):
-
-    @property
-    def md5_hash(self):
-        if self.digest and self.digest.startswith("md5-"):
-            return self.digest[4:]
-
-
 class CODES:
     """Blob type codes.
 

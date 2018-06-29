@@ -10,7 +10,7 @@ from hashlib import sha1
 from itertools import chain
 from os.path import join
 
-from corehq.blobs import BlobInfo, get_blob_db, CODES  # noqa
+from corehq.blobs import get_blob_db, CODES  # noqa
 from corehq.blobs.exceptions import AmbiguousBlobStorageError, NotFound
 from corehq.blobs.interface import SAFENAME
 from corehq.blobs.util import (
@@ -36,10 +36,6 @@ class BlobMetaPointer(DocumentSchema):
     blobmeta_id = IntegerProperty()
     content_type = StringProperty()
     content_length = IntegerProperty()
-
-    @property
-    def info(self):
-        return BlobInfo(self.path, self.content_length)
 
     @classmethod
     def _from_attachment(cls, data):
