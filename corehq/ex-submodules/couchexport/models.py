@@ -970,7 +970,11 @@ class SavedBasicExport(BlobMixin, Document):
         return hashlib.md5(six.text_type(self.configuration.filename).encode('utf-8')).hexdigest()
 
     def set_payload(self, payload):
-        self.put_attachment(payload, self.get_attachment_name())
+        # According to @esoergel this code is slated for removal in the near
+        # future, so I didn't think it was worth it to try to pass the domain
+        # in here.
+        domain = "<unknown>"
+        self.put_attachment(payload, self.get_attachment_name(), domain=domain)
 
     def get_payload(self, stream=False):
         return self.fetch_attachment(self.get_attachment_name(), stream=stream)
