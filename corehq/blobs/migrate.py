@@ -292,6 +292,7 @@ class BlobDbBackendMigrator(BaseDocMigrator):
                 super(BlobDbBackendMigrator, self)._backup_doc({
                     "blobmeta_id": meta.id,
                     "domain": meta.domain,
+                    "type_code": meta.type_code,
                     "parent_id": meta.parent_id,
                     "blob_path": meta.path,
                     "error": "not found",

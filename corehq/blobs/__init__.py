@@ -55,24 +55,36 @@ class CODES:
     never been used before, preferably one more than the highest
     existing code. Once a type code has been used it should never be
     reused for another purpose.
+
+    Each type code associated with couch documents should only reference
+    document types living in a single couch database or SQL models with
+    non-overlapping primary keys. Tools like the `check_blob_logs`
+    management command will not work properly if this contract is
+    broken.
     """
-    _default = 0     # legacy, do not use
+    _default = 0        # legacy, do not use
+
+    tempfile = 1
 
     # SQL forms + XFormInstance, XFormArchived, XFormDeprecated,
     # XFormDuplicate, XFormInstance-Deleted
-    form = 1
-    form_attachment = 2
+    form = 2
+    form_attachment = 3
 
-    domain = 3          # Domain
-    application = 4     # Application, Application-Deleted, LinkedApplication
-    multimedia = 5      # CommCareMultimedia
-    commcarebuild = 6   # CommCareBuild
-    data_import = 7     # case_importer
+    domain = 4          # Domain
+    application = 5     # Application, Application-Deleted, LinkedApplication
+    multimedia = 6      # CommCareMultimedia
+    commcarebuild = 7   # CommCareBuild
+    data_import = 8     # case_importer
 
     # FormExportInstance, CaseExportInstance, SavedBasicExport
-    data_export = 8
+    data_export = 9
+    basic_export = 10   # SavedBasicExport
 
-    invoice = 9         # InvoicePdf
-    restore = 10
-    fixture = 11        # domain-fixtures
-    tempfile = 12
+    invoice = 11        # InvoicePdf
+    restore = 12
+    fixture = 13        # domain-fixtures
+
+
+CODES.name_of = {code: name
+    for name, code in vars(CODES).items() if isinstance(code, int)}.get

@@ -42,6 +42,7 @@ class TestMigrateBackend(TestCase):
             self.not_founds.add((
                 lost.id,
                 lost.domain,
+                lost.type_code,
                 lost.parent_id,
                 lost.path,
             ))
@@ -75,7 +76,13 @@ class TestMigrateBackend(TestCase):
 
             # verify: missing blobs written to log files
             missing_log = set()
-            fields = ["blobmeta_id", "domain", "parent_id", "blob_path"]
+            fields = [
+                "blobmeta_id",
+                "domain",
+                "type_code",
+                "parent_id",
+                "blob_path",
+            ]
             with open(filename, encoding='utf-8') as fh:
                 for line in fh:
                     doc = json.loads(line)
