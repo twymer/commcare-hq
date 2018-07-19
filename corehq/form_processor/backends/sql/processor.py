@@ -11,6 +11,7 @@ from django.db import transaction
 from lxml import etree
 
 from casexml.apps.case.xform import get_case_updates
+from corehq.blobs import get_blob_db
 from corehq.form_processor.backends.sql.dbaccessors import (
     FormAccessorSQL, CaseAccessorSQL, LedgerAccessorSQL
 )
@@ -21,7 +22,7 @@ from corehq.form_processor.change_publishers import (
 from corehq.form_processor.exceptions import CaseNotFound, XFormNotFound, KafkaPublishingError
 from corehq.form_processor.interfaces.processor import CaseUpdateMetadata
 from corehq.form_processor.models import (
-    XFormInstanceSQL, XFormAttachmentSQL, CaseTransaction,
+    XFormInstanceSQL, CaseTransaction,
     CommCareCaseSQL, FormEditRebuild, Attachment, XFormOperationSQL)
 from corehq.form_processor.utils import convert_xform_to_json, extract_meta_instance_id, extract_meta_user_id
 from couchforms.const import ATTACHMENT_NAME
@@ -34,36 +35,41 @@ class FormProcessorSQL(object):
     @classmethod
     def store_attachments(cls, xform, attachments):
         xform_attachments = []
+        blobdb = get_blob_db()
         for attachment in attachments:
-            xform_attachment = XFormAttachmentSQL(
-                name=attachment.name,
-                attachment_id=uuid.uuid4(),
-                content_type=attachment.content_type,
-            )
-            xform_attachment.write_content(attachment.content)
-            if xform_attachment.is_image:
+            properties = {}
+            content_type = attachment.content_type
+            if attachment.is_image:
                 try:
                     img_size = Image.open(attachment.content_as_file()).size
-                    xform_attachment.properties = dict(width=img_size[0], height=img_size[1])
+                    properties.update(width=img_size[0], height=img_size[1])
                 except IOError:
-                    xform_attachment.content_type = 'application/octet-stream'
-            xform_attachments.append(xform_attachment)
-
-        xform.unsaved_attachments = xform_attachments
+                    content_type = 'application/octet-stream'
+            xform_attachments.append(blobdb.put(
+                attachment.content,
+                domain=xform.domain,
+                parent_id=xform.form_id,
+                tyep_code=(CODES.form if attachment.name == "form.xml"
+                    else CODES.form_attachment),
+                name=attachment.name,
+                content_type=content_type,
+                properties=properties,
+            ))
+        xform.cached_attachments = xform_attachments
 
     @classmethod
     def copy_attachments(cls, from_form, to_form):
-        to_form.unsaved_attachments = getattr(to_form, 'unsaved_attachments', [])
+        to_form.cached_attachments = getattr(to_form, 'cached_attachments', [])
+        blobdb = get_blob_db()
         for name, att in from_form.attachments.items():
-            to_form.unsaved_attachments.append(XFormAttachmentSQL(
+            to_form.cached_attachments.append(blobdb.put(
+                content=blobdb.get(from_form.path),
+                domain=to_form.domain,
+                parent_id=to_form.form_id,
                 name=att.name,
-                attachment_id=uuid.uuid4(),
                 content_type=att.content_type,
                 content_length=att.content_length,
                 properties=att.properties,
-                blob_id=att.blob_id,
-                blob_bucket=att.blobdb_bucket(),
-                md5=att.md5,
             ))
 
     @classmethod

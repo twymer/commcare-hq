@@ -16,7 +16,8 @@ from corehq.apps.reports.tasks import (
     _get_export_properties,
 )
 from corehq.apps.users.models import CommCareUser
-from corehq.form_processor.models import XFormInstanceSQL, XFormAttachmentSQL
+from corehq.blobs.models import BlobMeta
+from corehq.form_processor.models import XFormInstanceSQL
 from couchexport.models import Format
 from couchforms.models import XFormInstance
 from django_digest.test import Client
@@ -122,7 +123,7 @@ class FormMultimediaExportTest(SimpleTestCase):
             for name, meta in attachments.items():
                 couch_xform.deferred_put_attachment("content", name, **meta)
             sql_xform = XFormInstanceSQL(received_on=datetime.datetime.now())
-            sql_xform.unsaved_attachments = [XFormAttachmentSQL(name=name, **meta)
+            sql_xform.cached_attachments = [BlobMeta(name=name, **meta)
                 for name, meta in attachments.items()]
 
             for xform in (couch_xform, sql_xform):

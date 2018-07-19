@@ -38,7 +38,7 @@ class Command(BaseCommand):
                             self.write_row(csv_writer, domain, form.is_archived, form.received_on, form.form_id)
                     elif isinstance(form, XFormInstanceSQL):
                         meta = form.get_attachment_meta(ATTACHMENT_NAME)
-                        if not meta or not blob_db.exists(meta.blob_id, meta.blobdb_bucket()):
+                        if not meta or not blob_db.exists(meta.path):
                             self.write_row(csv_writer, domain, form.is_archived, form.received_on, form.form_id)
                     else:
                         raise Exception("not sure how we got here")

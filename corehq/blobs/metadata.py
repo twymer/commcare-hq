@@ -6,7 +6,10 @@ from datetime import datetime, timedelta
 from itertools import chain
 
 from corehq.sql_db.routers import get_cursor
-from corehq.sql_db.util import split_list_by_db_partition
+from corehq.sql_db.util import (
+    get_db_alias_for_partitioned_doc,
+    split_list_by_db_partition,
+)
 from corehq.util.datadog.gauges import datadog_counter
 
 from .models import BlobMeta
@@ -90,6 +93,43 @@ class MetaDB(object):
         deleted_bytes = sum(meta.content_length for m in metas)
         datadog_counter('commcare.blobs.deleted.count', value=len(metas))
         datadog_counter('commcare.blobs.deleted.bytes', value=deleted_bytes)
+
+    def get(self, **kw):
+        """Get metadata for a single blob
+
+        :param parent_id: `BlobMeta.parent_id`
+        :param name: `BlobMeta.name`
+        :raises: `BlobMeta.DoesNotExist` if the metadata is not found.
+        :returns: A `BlobMeta` object.
+        """
+        if set(kw) != {"parent_id", "name"}:
+            # arg check until on Python 3 -> PEP 3102: required keyword args
+            kw.pop("parent_id", None)
+            kw.pop("name", None)
+            if not kw:
+                raise TypeError("Missing argument 'name' and/or 'parent_id'")
+            raise TypeError("Unexpected arguments: {}".format(", ".join(kw)))
+        dbname = get_db_alias_for_partitioned_doc(kw["parent_id"])
+        return BlobMeta.objects.using(db_name).get(**kw)
+
+    def get_for_parent(self, parent_id):
+        """Get a list of `BlobMeta` objects for the given parent
+
+        :param parent_id: `BlobMeta.parent_id`
+        :returns: A list of `BlobMeta` objects.
+        """
+        dbname = get_db_alias_for_partitioned_doc(parent_id)
+        return list(BlobMeta.objects.using(db_name).filter(parent_id=parent_id))
+
+    def get_for_parents(self, parent_ids):
+        """Get a list of `BlobMeta` objects for the given parent(s)
+
+        :param parent_ids: List of `BlobMeta.parent_id` values.
+        :returns: A list of `BlobMeta` objects sorted by `parent_id`.
+        """
+        return list(BlobMeta.objects.raw(
+            'SELECT * from get_blobmetas(%s)', [parent_id__in]
+        ))
 
 
 def _utcnow():

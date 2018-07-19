@@ -7,11 +7,13 @@ from django.db.models import (
     BooleanField,
     CharField,
     DateTimeField,
+    Index,
     IntegerField,
     Model,
     PositiveIntegerField,
     PositiveSmallIntegerField,
 )
+from jsonfield import JSONField
 from partial_index import PartialIndex
 
 from corehq.sql_db.models import PartitionedModel, RestrictedManager
@@ -27,17 +29,14 @@ class BlobMeta(PartitionedModel, Model):
     partition_attr = "parent_id"
     objects = RestrictedManager()
 
-    domain = CharField(db_index=True, max_length=255)
+    domain = CharField(max_length=255)
     parent_id = CharField(
         max_length=255,
-        db_index=True,
         help_text="Parent primary key or unique identifier",
     )
     name = CharField(
         max_length=255,
-        null=True,
-        blank=False,
-        default=None,
+        default="",
         help_text="""Optional blob name.
 
         This field is intended to be used by doc types having multiple
@@ -61,20 +60,37 @@ class BlobMeta(PartitionedModel, Model):
     )
     content_length = PositiveIntegerField()
     content_type = CharField(max_length=255, null=True)
+    properties = JSONField()
     created_on = DateTimeField(default=datetime.utcnow)
     expires_on = DateTimeField(default=None, null=True)
 
     class Meta:
+        unique_together = ("parent_id", "name")
         indexes = [
             PartialIndex(
                 fields=['expires_on'],
                 unique=False,
                 where='expires_on IS NOT NULL',
             ),
+
+            # Avoid extra varchar_pattern_ops indexes on these
+            # since we do not do LIKE queries on them.
+            # https://stackoverflow.com/a/50926644/10840
+            Index(fields=['domain']),
+            Index(fields=['path']),
         ]
 
     def __repr__(self):
         return "<BlobMeta id={self.id} path={self.path}>".format(self=self)
+
+    @property
+    def is_image(self):
+        """Use content type to check if blob is an image"""
+        return (self.content_type or "").startswith("image/")
+
+    def read_content(self):
+        from . import get_blob_db
+        return get_blob_db().get(self.path)
 
 
 class BlobMigrationState(Model):

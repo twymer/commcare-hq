@@ -21,6 +21,7 @@ from lxml import etree
 from corehq.apps.sms.mixin import MessagingCaseContactMixin
 from corehq.blobs import get_blob_db
 from corehq.blobs.mixin import get_short_identifier
+from corehq.blobs.models import BlobMeta
 from corehq.blobs.exceptions import NotFound, BadName
 from corehq.form_processor.abstract_models import DEFAULT_PARENT_IDENTIFIER
 from corehq.form_processor.exceptions import InvalidAttachment, UnknownActionType
@@ -41,7 +42,6 @@ import six
 from six.moves import map
 
 XFormInstanceSQL_DB_TABLE = 'form_processor_xforminstancesql'
-XFormAttachmentSQL_DB_TABLE = 'form_processor_xformattachmentsql'
 XFormOperationSQL_DB_TABLE = 'form_processor_xformoperationsql'
 
 CommCareCaseSQL_DB_TABLE = 'form_processor_commcarecasesql'
@@ -66,7 +66,7 @@ class TruncatingCharField(models.CharField):
         return value
 
 
-class Attachment(namedtuple('Attachment', 'name raw_content content_type')):
+class Attachment(namedtuple('Attachment', 'name raw_content content_type'), IsImageMixin):
 
     @property
     @memoized
@@ -93,9 +93,6 @@ class SaveStateMixin(object):
 
 
 class AttachmentMixin(SaveStateMixin):
-    """Requires the model to be linked to the attachments model via the 'attachments' related name.
-    """
-    ATTACHMENTS_RELATED_NAME = 'attachment_set'
 
     def get_attachments(self):
         for list_attr in ('unsaved_attachments', 'cached_attachments'):
@@ -353,13 +350,14 @@ class XFormInstanceSQL(PartitionedModel, models.Model, RedisLockableMixIn, Attac
         data['backend_id'] = 'sql'
         return data
 
-    def _get_attachment_from_db(self, attachment_name):
-        from corehq.form_processor.backends.sql.dbaccessors import FormAccessorSQL
-        return FormAccessorSQL.get_attachment_by_name(self.form_id, attachment_name)
+    def _get_attachment_from_db(self, name):
+        try:
+            return get_blob_db().metadb.get(parent_id=self.form_id, name=name)
+        except BlobMeta.DoesNotExist:
+            return None
 
     def _get_attachments_from_db(self):
-        from corehq.form_processor.backends.sql.dbaccessors import FormAccessorSQL
-        return FormAccessorSQL.get_attachments(self.form_id)
+        return get_blob_db().metadb.get_for_parent(self.form_id)
 
     def get_xml_element(self):
         xml = self.get_xml()
@@ -500,38 +498,6 @@ class AbstractAttachment(PartitionedModel, models.Model, SaveStateMixin):
     class Meta(object):
         abstract = True
         app_label = "form_processor"
-
-
-class XFormAttachmentSQL(AbstractAttachment, IsImageMixin):
-    partition_attr = 'form_id'
-    objects = RestrictedManager()
-    _attachment_prefix = 'form'
-
-    form = models.ForeignKey(
-        XFormInstanceSQL, to_field='form_id', db_index=False,
-        related_name=AttachmentMixin.ATTACHMENTS_RELATED_NAME, related_query_name="attachment",
-        on_delete=models.CASCADE,
-    )
-
-    def __unicode__(self):
-        return six.text_type(
-            "XFormAttachmentSQL("
-            "attachment_id='{a.attachment_id}', "
-            "form_id='{a.form_id}', "
-            "name='{a.name}', "
-            "content_type='{a.content_type}', "
-            "content_length='{a.content_length}', "
-            "md5='{a.md5}', "
-            "blob_id='{a.blob_id}', "
-            "properties='{a.properties}', "
-        ).format(a=self)
-
-    class Meta(object):
-        db_table = XFormAttachmentSQL_DB_TABLE
-        app_label = "form_processor"
-        index_together = [
-            ["form", "name"],
-        ]
 
 
 class XFormOperationSQL(PartitionedModel, SaveStateMixin, models.Model):
