@@ -29,7 +29,7 @@ from corehq.form_processor.backends.sql.processor import FormProcessorSQL
 from corehq.form_processor.interfaces.processor import FormProcessorInterface, ProcessedForms
 from corehq.form_processor.models import (
     XFormInstanceSQL, XFormOperationSQL, CommCareCaseSQL,
-    CaseTransaction, RebuildWithReason, CommCareCaseIndexSQL,
+    CaseTransaction, RebuildWithReason, CommCareCaseIndexSQL, CaseAttachmentSQL
 )
 from corehq.form_processor.submission_post import CaseStockProcessingResult
 from corehq.form_processor.utils import adjust_datetimes
@@ -547,28 +547,20 @@ def _migrate_case_actions(couch_case, sql_case):
 
 def _migrate_case_attachments(couch_case, sql_case):
     """Copy over attachment meta """
-    metadb = get_blob_db().metadb
     for name, attachment in six.iteritems(couch_case.case_attachments):
         blob = couch_case.blobs[name]
         assert name == attachment.identifier or not attachment.identifier or not name, \
             (name, attachment.identifier)
-        try:
-            meta = metadb.get(parent_id=sql_case.case_id, name=name)
-            assert meta.domain == couch_case.domain, (meta.domain, couch_case.domain)
-            assert meta.parent_id == sql_case.case_id, (meta.parent_id, sql_case.case_id)
-            assert meta.type_code == BLOB_CODES.case_attachment, \
-                (meta.type_code, BLOB_CODES.case_attachment)
-        except BlobNotFound:
-            sql_case.track_create(metadb.new(
-                domain=couch_case.domain,
-                name=name or attachment.identifier,
-                path=blob.path,
-                parent_id=sql_case.case_id,
-                type_code=BLOB_CODES.case_attachment,
-                content_type=attachment.server_mime,
-                content_length=attachment.content_length,
-                properties=attachment.attachment_properties,
-            ))
+        sql_case.track_create(CaseAttachmentSQL(
+            name=name or attachment.identifier,
+            case=sql_case,
+            content_type=attachment.server_mime,
+            content_length=attachment.content_length,
+            blob_id=blob.id,
+            blob_bucket=couch_case._blobdb_bucket(),
+            properties=attachment.attachment_properties,
+            md5=attachment.server_md5
+        ))
 
 
 def _migrate_case_indices(couch_case, sql_case):

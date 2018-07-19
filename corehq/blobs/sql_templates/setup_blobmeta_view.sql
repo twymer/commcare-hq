@@ -17,8 +17,7 @@ CREATE OR REPLACE VIEW blobs_blobmeta (
  * Values in the "id" column are partitioned into three ranges:
  *
  * positive values: non-legacy blob metadata records
- * -1 to -1000000: legacy case attachments
- * less than -1000000: legacy form attachments
+ * negative values: legacy form attachments
  *
  * Legacy metadata can be updated and deleted, but new records cannot be
  * inserted into these ranges. Some legacy metadata fields cannot be
@@ -30,25 +29,7 @@ SELECT * FROM blobs_blobmeta_tbl
 UNION ALL
 
 SELECT
-    -att."id",
-    ccase."domain",
-    att.case_id AS parent_id,
-    att."name",
-    COALESCE(COALESCE(att.blob_bucket, "case/" || att.attachment_id) || "/", "") || att.blob_id AS "path",
-    3 AS type_code, -- corehq.blobs.CODES.case_attachment
-    att.content_length,
-    att.content_type,
-    att.properties,
-    ccase.created_on AS created_on,
-    NULL AS expires_on
-FROM form_processor_caseattachmentsql att
-    LEFT OUTER JOIN form_processor_commcarecasesql ccase
-        ON ccase.case_id = att.case_id
-
-UNION ALL
-
-SELECT
-    -(att."id" + 1000000) AS "id",
+    -att."id" AS "id",
     xform."domain",
     att.form_id AS parent_id,
     att."name",
@@ -120,41 +101,24 @@ CREATE OR REPLACE FUNCTION mutate_blobs_blobmeta() RETURNS TRIGGER AS $$ BEGIN
                 RAISE EXCEPTION 'Cannot set expires_on on attachment metadata';
             END IF;
 
-            IF OLD."id" > -1000000 AND OLD."id" < 0 THEN
-                UPDATE form_processor_caseattachmentsql SET
-                    "id" = NEW."id",
-                    "case_id" = NEW."parent_id",
-                    "name" = NEW."name",
-                    "blob_bucket" = NULL,
-                    "attachment_id" = NULL,
-                    "blob_id" = NEW."path",
-                    "content_length" = NEW."content_length",
-                    "content_type" = NEW."content_type",
-                    "properties" = NEW."properties"
-                WHERE "id" = -OLD."id";
-            ELSE
-                UPDATE form_processor_xformattachmentsql SET
-                    "form_id" = NEW."parent_id",
-                    "name" = NEW."name",
-                    "blob_bucket" = NULL,
-                    "attachment_id" = NULL,
-                    "blob_id" = NEW."path",
-                    "content_length" = NEW."content_length",
-                    "content_type" = NEW."content_type",
-                    "properties" = NEW."properties"
-                WHERE "id" = -(OLD."id" + 1000000);
-            END IF;
+            UPDATE form_processor_xformattachmentsql SET
+                "form_id" = NEW."parent_id",
+                "name" = NEW."name",
+                "blob_bucket" = NULL,
+                "attachment_id" = NULL,
+                "blob_id" = NEW."path",
+                "content_length" = NEW."content_length",
+                "content_type" = NEW."content_type",
+                "properties" = NEW."properties"
+            WHERE "id" = -OLD."id";
         END IF;
     ELSIF TG_OP = 'DELETE' THEN
         IF OLD."id" >= 0 THEN
             DELETE FROM blobs_blobmeta_tbl
             WHERE "id" = OLD."id";
-        ELSIF OLD."id" > -1000000 AND OLD."id" < 0 THEN
-            DELETE FROM form_processor_caseattachmentsql
-            WHERE "id" = -OLD."id";
         ELSE
             DELETE FROM form_processor_xformattachmentsql
-            WHERE "id" = -(OLD."id" + 1000000);
+            WHERE "id" = -OLD."id";
         END IF;
 
         RETURN OLD;
