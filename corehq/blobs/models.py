@@ -44,7 +44,6 @@ class BlobMeta(PartitionedModel, Model):
         """,
     )
     path = CharField(
-        unique=True,
         max_length=255,
         default=uuid4_hex,
         help_text="""Blob path in the external blob store.
@@ -65,19 +64,21 @@ class BlobMeta(PartitionedModel, Model):
     expires_on = DateTimeField(default=None, null=True)
 
     class Meta:
-        unique_together = ("parent_id", "name")
+        unique_together = [
+            # HACK work around unique=True implies db_index=True
+            # https://code.djangoproject.com/ticket/24082
+            # Avoid extra varchar_pattern_ops index
+            # since we do not do LIKE queries on these
+            # https://stackoverflow.com/a/50926644/10840
+            ("path",),
+        ]
+        index_together = [("parent_id", "name")]
         indexes = [
             PartialIndex(
                 fields=['expires_on'],
                 unique=False,
                 where='expires_on IS NOT NULL',
             ),
-
-            # Avoid extra varchar_pattern_ops indexes on these
-            # since we do not do LIKE queries on them.
-            # https://stackoverflow.com/a/50926644/10840
-            Index(fields=['domain']),
-            Index(fields=['path']),
         ]
 
     def __repr__(self):

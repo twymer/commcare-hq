@@ -10,6 +10,7 @@ import partial_index
 from django.db import migrations, models
 
 import corehq.blobs.models
+import corehq.blobs.util
 from corehq.sql_db.operations import RawSQLMigration
 
 
@@ -28,10 +29,10 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('domain', models.CharField(max_length=255)),
-                ('parent_id', models.CharField(max_length=255)),
-                ('name', models.CharField(default='', max_length=255)),
-                ('path', models.CharField(default=corehq.blobs.models.uuid4_hex, max_length=255, unique=True)),
-                ('type_code', models.PositiveSmallIntegerField()),
+                ('parent_id', models.CharField(help_text='Parent primary key or unique identifier', max_length=255)),
+                ('name', models.CharField(default='', help_text='Optional blob name.\n\n        This field is intended to be used by doc types having multiple\n        blobs associated with a single document.\n        ', max_length=255),),
+                ('path', models.CharField(default=corehq.blobs.models.uuid4_hex, help_text="Blob path in the external blob store.\n\n        This must be a globally unique value. Historically this was\n        `blob_bucket + '/' + identifier` for blobs associated with a\n        couch document. Could be a UUID or the result of\n        `util.random_url_id(16)`. Defaults to `uuid4().hex`.\n        ", max_length=255)),
+                ('type_code', models.PositiveSmallIntegerField(help_text='Blob type code. See `corehq.blobs.CODES`.')),
                 ('content_length', models.PositiveIntegerField()),
                 ('content_type', models.CharField(max_length=255, null=True)),
                 ('properties', jsonfield.fields.JSONField()),
@@ -43,20 +44,18 @@ class Migration(migrations.Migration):
             model_name='blobmeta',
             index=partial_index.PartialIndex(fields=['expires_on'], name='blobs_blobm_expires_64b92d_partial', unique=False, where='expires_on IS NOT NULL', where_postgresql=b'', where_sqlite=b''),
         ),
-        migrations.AddIndex(
-            model_name='blobmeta',
-            index=models.Index(fields=['domain'], name='blobs_blobm_domain_515f14_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='blobmeta',
-            index=models.Index(fields=['path'], name='blobs_blobm_path_236511_idx'),
+        migrations.AlterIndexTogether(
+            name='blobmeta',
+            index_together=set([('parent_id', 'name')]),
         ),
         migrations.AlterUniqueTogether(
             name='blobmeta',
-            unique_together=set([('parent_id', 'name')]),
+            unique_together=set([('path',)]),
         ),
-        migrator.get_migration('setup_blobmeta_table.sql'),
-        migrator.get_migration('delete_blob_meta.sql'),
-        migrator.get_migration('get_expired_blobs.sql'),
         migrator.get_migration('get_blobmetas.sql'),
+        migrator.get_migration('delete_blob_meta.sql'),
+        migrator.get_migration('setup_blobmeta_view.sql', 'drop_blobmeta_view.sql'),
+        # get_expired_blobs.sql must come after setup_blobmeta_view.sql
+        migrator.get_migration('get_expired_blobs.sql'),
+        migrator.get_migration('restrict_legacy_attachment_metadata_insert.sql', testing_only=True)
     ]

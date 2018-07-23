@@ -1,4 +1,4 @@
-ALTER TABLE blobs_blobmeta RENAME TO blobs_blobmeta_tbl
+ALTER TABLE blobs_blobmeta RENAME TO blobs_blobmeta_tbl;
 
 CREATE OR REPLACE VIEW blobs_blobmeta (
     "id",
@@ -14,14 +14,14 @@ CREATE OR REPLACE VIEW blobs_blobmeta (
     "expires_on"
 ) AS
 /*
- * Values in the "id" column are partitioned into three ranges:
+ * Values in the "id" column are partitioned into two ranges:
  *
- * positive values: non-legacy blob metadata records
- * negative values: legacy form attachments
+ * positive values: blob metadata records
+ * negative values: legacy form attachment metadata
  *
- * Legacy metadata can be updated and deleted, but new records cannot be
- * inserted into these ranges. Some legacy metadata fields cannot be
- * updated: domain, type_code, created_on, expires_on.
+ * Legacy metadata can be updated and deleted, but new records should
+ * not be inserted into this range. Some legacy metadata fields cannot
+ * be updated: domain, type_code, created_on, expires_on.
  */
 
 SELECT * FROM blobs_blobmeta_tbl
@@ -33,11 +33,11 @@ SELECT
     xform."domain",
     att.form_id AS parent_id,
     att."name",
-    COALESCE(COALESCE(att.blob_bucket, "form/" || att.attachment_id) || "/", "") || att.blob_id AS "path",
+    COALESCE(COALESCE(att.blob_bucket, 'form/' || att.attachment_id) || '/', '') || att.blob_id AS "path",
     CASE
-        WHEN att."name" = "form.xml" THEN 1 -- corehq.blobs.CODES.form
+        WHEN att."name" = 'form.xml' THEN 1 -- corehq.blobs.CODES.form
         ELSE 2 -- corehq.blobs.CODES.form_attachment
-    END CASE AS type_code,
+    END AS type_code,
     att.content_length,
     att.content_type,
     att.properties,
@@ -50,6 +50,9 @@ FROM form_processor_xformattachmentsql att
 
 CREATE OR REPLACE FUNCTION mutate_blobs_blobmeta() RETURNS TRIGGER AS $$ BEGIN
     IF TG_OP = 'INSERT' THEN
+        IF NEW."id" IS NULL THEN
+            NEW."id" := NEXTVAL('blobs_blobmeta_id_seq');
+        END IF;
         INSERT INTO blobs_blobmeta_tbl (
             "id",
             "domain",

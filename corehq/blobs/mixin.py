@@ -153,6 +153,7 @@ class BlobMixin(Document):
             content,
             domain=domain or self.domain,
             parent_id=self._id,
+            name=name,
             type_code=self._blobdb_type_code,
             content_type=content_type,
         )
