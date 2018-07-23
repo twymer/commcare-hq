@@ -4,12 +4,14 @@ from io import BytesIO
 from shutil import rmtree
 from tempfile import mkdtemp
 
+from django.db import connections
 from django.test import TestCase
 
 import corehq.blobs.fsdb as fsdb
 from corehq.blobs import CODES
 from corehq.blobs.models import BlobMeta
 from corehq.blobs.tests.util import get_meta, new_meta
+from corehq.sql_db.routers import db_for_read_write
 
 
 class TestMetaDB(TestCase):
@@ -51,6 +53,23 @@ class TestMetaDB(TestCase):
         saved = get_meta(id=meta.id)
         self.assertTrue(saved is not meta)
         self.assertEqual(saved.path, meta.path)
+
+    def test_save_properties(self):
+        meta = new_meta(properties={"mood": "Vangelis"})
+        self.db.put(BytesIO(b"content"), meta=meta)
+        self.assertEqual(get_meta(id=meta.id).properties, {"mood": "Vangelis"})
+
+    def test_save_empty_properties(self):
+        meta = new_meta()
+        self.assertEqual(meta.properties, {})
+        self.db.put(BytesIO(b"content"), meta=meta)
+        self.assertEqual(get_meta(id=meta.id).properties, {})
+        with connections[db_for_read_write(BlobMeta)].cursor() as cursor:
+            cursor.execute(
+                "SELECT id, properties FROM blobs_blobmeta WHERE id = %s",
+                [meta.id],
+            )
+            self.assertEqual(cursor.fetchall(), [(meta.id, None)])
 
     def test_delete(self):
         meta = new_meta()

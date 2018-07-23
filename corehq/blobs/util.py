@@ -2,6 +2,33 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 import os
 from base64 import urlsafe_b64encode
+from jsonfield import JSONField
+
+
+class NullJsonField(JSONField):
+    """A JSONField that stores null when its value is empty
+
+    Any value stored in this field will be discarded and replaced with
+    the default if it evaluates to false during serialization.
+    """
+
+    def __init__(self, **kw):
+        kw.setdefault("null", True)
+        super(NullJsonField, self).__init__(**kw)
+        assert self.null
+
+    def get_db_prep_value(self, value, *args, **kw):
+        if not value:
+            value = None
+        return super(NullJsonField, self).get_db_prep_value(value, *args, **kw)
+
+    def to_python(self, value):
+        value = super(NullJsonField, self).to_python(value)
+        return self.get_default() if value is None else value
+
+    def pre_init(self, value, obj):
+        value = super(NullJsonField, self).pre_init(value, obj)
+        return self.get_default() if value is None else value
 
 
 class ClosingContextProxy(object):
