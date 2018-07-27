@@ -73,7 +73,7 @@ class BlobMeta(PartitionedModel, Model):
             # https://stackoverflow.com/a/50926644/10840
             ("path",),
         ]
-        index_together = [("parent_id", "name")]
+        index_together = [("parent_id", "type_code", "name")]
         indexes = [
             PartialIndex(
                 fields=['expires_on'],

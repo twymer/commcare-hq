@@ -24,7 +24,7 @@ from django.db.models.functions import Greatest, Concat
 from django.db.models.expressions import Value
 
 from corehq.apps.users.util import SYSTEM_USER_ID
-from corehq.blobs import get_blob_db
+from corehq.blobs import get_blob_db, CODES as BLOB_CODES
 from corehq.blobs.models import BlobMeta
 from corehq.form_processor.exceptions import (
     XFormNotFound,
@@ -430,8 +430,14 @@ class FormAccessorSQL(AbstractFormAccessor):
 
     @staticmethod
     def get_attachment_by_name(form_id, attachment_name):
+        code = (BLOB_CODES.form if attachment_name == "form.xml"
+                else BLOB_CODES.form_attachment)
         try:
-            return get_blob_db().metadb.get(parent_id=form_id, name=attachment_name)
+            return get_blob_db().metadb.get(
+                parent_id=form_id,
+                type_code=code,
+                name=attachment_name,
+            )
         except BlobMeta.DoesNotExist:
             raise AttachmentNotFound(attachment_name)
 
@@ -519,7 +525,7 @@ class FormAccessorSQL(AbstractFormAccessor):
         assert isinstance(form_ids, list)
         if not form_ids:
             return []
-        # MetaDB.filter() returns obects sorted by parent_id
+        # MetaDB.get_for_parents() returns obects sorted by parent_id
         return get_blob_db().metadb.get_for_parents(form_ids)
 
     @staticmethod

@@ -46,7 +46,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AlterIndexTogether(
             name='blobmeta',
-            index_together=set([('parent_id', 'name')]),
+            index_together=set([('parent_id', 'type_code', 'name')]),
         ),
         migrations.AlterUniqueTogether(
             name='blobmeta',

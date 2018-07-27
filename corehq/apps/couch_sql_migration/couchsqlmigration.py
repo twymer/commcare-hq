@@ -484,7 +484,11 @@ def _migrate_form_attachments(sql_form, couch_form):
     for name, blob in six.iteritems(couch_form.blobs):
         type_code = BLOB_CODES.form if name == "form.xml" else BLOB_CODES.form_attachment
         try:
-            meta = metadb.get(parent_id=sql_form.form_id, name=name)
+            meta = metadb.get(
+                parent_id=sql_form.form_id,
+                type_code=type_code,
+                name=name
+            )
             assert meta.domain == couch_form.domain, (meta.domain, couch_form.domain)
             assert meta.parent_id == sql_form.form_id, (meta.parent_id, sql_form.form_id)
             assert meta.type_code == type_code, (meta.type_code, type_code)

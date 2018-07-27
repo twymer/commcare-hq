@@ -58,9 +58,9 @@ class CODES:
 
     Each type code associated with couch documents should only reference
     document types living in a single couch database or SQL models with
-    non-overlapping primary keys. Tools like the `check_blob_logs`
-    management command will not work properly if this contract is
-    broken.
+    non-overlapping primary keys. `MetaDB.get` and related methods as
+    well as tools like the `check_blob_logs` management command will not
+    function properly if this contract is broken.
     """
     _default = 0        # legacy, do not use
 

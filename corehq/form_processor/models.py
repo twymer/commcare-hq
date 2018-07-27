@@ -20,11 +20,9 @@ from jsonobject.properties import BooleanProperty
 from lxml import etree
 from corehq.apps.sms.mixin import MessagingCaseContactMixin
 from corehq.blobs import get_blob_db
-from corehq.blobs.mixin import get_short_identifier
-from corehq.blobs.models import BlobMeta
 from corehq.blobs.exceptions import NotFound, BadName
 from corehq.form_processor.abstract_models import DEFAULT_PARENT_IDENTIFIER
-from corehq.form_processor.exceptions import InvalidAttachment, UnknownActionType
+from corehq.form_processor.exceptions import UnknownActionType
 from corehq.form_processor.track_related import TrackRelatedChanges
 from corehq.apps.tzmigration.api import force_phone_timezones_should_be_processed
 from corehq.sql_db.models import PartitionedModel, RestrictedManager
@@ -351,13 +349,15 @@ class XFormInstanceSQL(PartitionedModel, models.Model, RedisLockableMixIn, Attac
         return data
 
     def _get_attachment_from_db(self, name):
+        from corehq.form_processor.backends.sql.dbaccessors import FormAccessorSQL
         try:
-            return get_blob_db().metadb.get(parent_id=self.form_id, name=name)
-        except BlobMeta.DoesNotExist:
+            return FormAccessorSQL.get_attachment_by_name(self.form_id, name)
+        except AttachmentNotFound:
             return None
 
     def _get_attachments_from_db(self):
-        return get_blob_db().metadb.get_for_parent(self.form_id)
+        from corehq.form_processor.backends.sql.dbaccessors import FormAccessorSQL
+        return FormAccessorSQL.get_attachments(self.form_id)
 
     def get_xml_element(self):
         xml = self.get_xml()
