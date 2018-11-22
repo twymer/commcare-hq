@@ -28,7 +28,7 @@ function Entry(question, options) {
     self.afterRender = function () {
         // Override with any logic that comes after rendering the Entry
     };
-    if (self.answer) {
+    if (String(self.answer).length) {  // because self.answer === 0 is falsey
         self.answer.subscribe(self.onAnswerChange.bind(self));
     }
 }
@@ -373,7 +373,7 @@ function ComboboxEntry(question, options) {
     };
 
     // If there is a prexisting answer, set the rawAnswer to the corresponding text.
-    if (question.answer()) {
+    if (String(question.answer()).length) {  // because question.answer() === 0 is falsey
         initialOption = self.options()[self.answer() - 1];
         self.rawAnswer(
             initialOption ? initialOption.name : Formplayer.Const.NO_ANSWER
