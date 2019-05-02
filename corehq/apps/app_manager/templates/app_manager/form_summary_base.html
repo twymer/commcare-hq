@@ -78,7 +78,7 @@
                 <!-- /ko -->
                 <ol data-bind="foreach: questions">
                     <li data-bind="visible: isVisible, css: getDiffClass('question') ">
-                        <i data-bind="attr: { 'class': $root.questionIcon($data), 'title': type }"></i>
+                        <i data-bind="attr: { 'title': type }, css: $root.questionIcon($data) + ' ' + getDiffClass('type')"></i>
                         <!-- ko ifnot: $root.readOnly -->
                         <a data-bind="attr: { 'href': $parent.url + hashtagValue }, css: getDiffClass('label'), text: $root.showIds() ? value :  $root.translateQuestion($data)" target="_blank"></a>
                         <!-- /ko  -->

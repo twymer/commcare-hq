@@ -148,6 +148,14 @@ class TestAppDiffs(_BaseTestAppDiffs, SimpleTestCase):
         self.assertTrue(first[0]['forms'][0].changes.contains_changes)
         self.assertTrue(second[0]['forms'][0].changes.contains_changes)
 
+    def test_change_question_type_marks_changed(self):
+        self._add_question(self.app1.modules[0].forms[0], {'data_type': 'string'})
+        self._add_question(self.app2.modules[0].forms[0], {'data_type': 'int'})
+        first, second = get_app_diff(self.app1, self.app2)
+
+        self.assertEqual(first[0]['forms'][0]['questions'][0]['changes']['type'], CHANGED)
+        self.assertEqual(second[0]['forms'][0]['questions'][0]['changes']['type'], CHANGED)
+
 
 class TestAppDiffsWithDB(_BaseTestAppDiffs, TestCase):
     def tearDown(self):
