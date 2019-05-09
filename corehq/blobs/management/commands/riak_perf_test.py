@@ -70,14 +70,15 @@ class Command(BaseCommand):
         )
         db.meta.client.meta.events.unregister('before-sign.s3', fix_s3_host)
 
+        bucket_name = config["s3_bucket"]
         try:
-            db.meta.client.head_bucket(Bucket='blobdbtest')
+            db.meta.client.head_bucket(Bucket=bucket_name)
         except ClientError as err:
             if not is_not_found(err):
                 raise
-            db.create_bucket(Bucket='blobdbtest')
+            db.create_bucket(Bucket=bucket_name)
 
-        bucket = db.Bucket('blobdbtest')
+        bucket = db.Bucket(bucket_name)
 
         queue = Queue(150)
         workers = []
@@ -137,7 +138,7 @@ class Worker(Process):
 
     def run(self):
         for path, count in iter(self.queue.get, None):
-            key = path.split('/')[-1]
+            key = 'perf_test_'.format(path.split('/')[-1])
 
             if self.write:
                 with Timer(self, 'write'):
