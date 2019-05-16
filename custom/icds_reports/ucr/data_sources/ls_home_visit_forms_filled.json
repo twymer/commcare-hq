@@ -209,6 +209,12 @@
         "distribution_column": "location_id"
       },
       "primary_key": ["location_id","doc_id"]
-    }
+    },
+    "mirrored_engine_ids": [
+        {
+            "server_environment": "india",
+            "engine_ids": ["icds-ucr-citus"]
+        }
+    ]
   }
 }
