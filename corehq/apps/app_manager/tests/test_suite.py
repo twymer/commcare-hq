@@ -1354,6 +1354,28 @@ class InstanceTests(SimpleTestCase, TestXmlMixin, SuiteMixin):
         configuration_mock_obj.sync_hierarchical_fixture = False
         self.assertXmlPartialEqual(flat_fixture_format_xml, self.factory.app.create_suite(), "entry/instance")
 
+    @mock.patch.object(LocationFixtureConfiguration, 'for_domain')
+    def test_location_instance_flag_hierarchical_app_both(self, fixture_config):
+        """ICDS has the domain flag set to hierarchical only, but the ICDS app is set
+        to sync both as they transition
+        https://dimagi-dev.atlassian.net/browse/ICDS-509
+
+        """
+        self.form.form_filter = "instance('locations')/locations/"
+        configuration_mock_obj = mock.MagicMock()
+        fixture_config.return_value = configuration_mock_obj
+
+        flat_fixture_format_xml = """
+            <partial>
+                <instance id='locations' src='jr://fixture/locations' />
+            </partial>
+        """
+        with flag_enabled('HIERARCHICAL_LOCATION_FIXTURE'):
+            configuration_mock_obj.sync_flat_fixture = False
+            self.factory.app.location_fixture_restore = 'both_fixtures'
+            suite = self.factory.app.create_suite()
+            self.assertXmlPartialEqual(flat_fixture_format_xml, suite, "entry/instance")
+
     def test_unicode_lookup_table_instance(self):
         self.form.form_filter = "instance('item-list:província')/província/"
         self.assertXmlPartialEqual(
