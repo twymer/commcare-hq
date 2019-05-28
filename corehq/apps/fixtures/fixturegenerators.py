@@ -117,7 +117,8 @@ class ItemListsProvider(FixtureProvider):
 
     def _get_global_items(self, global_types, domain, bypass_cache):
         items_by_type = defaultdict(list)
-        for item in FixtureDataItem.by_data_types(domain, global_types, bypass_cache):
+        # Here we pull every single item into memory
+        for item in FixtureDataItem.iter_by_data_types(domain, global_types, bypass_cache):
             data_type = global_types[item.data_type_id]
             self._set_cached_type(item, data_type)
             items_by_type[data_type].append(item)
@@ -137,6 +138,7 @@ class ItemListsProvider(FixtureProvider):
     def _set_cached_type(self, item, data_type):
         # set the cached version used by the object so that it doesn't
         # have to do another db trip later
+        # This is used when setting attributes in the `item.to_xml` method
         item._data_type = data_type
 
     def _get_fixtures(self, data_types, items_by_type, user_id):

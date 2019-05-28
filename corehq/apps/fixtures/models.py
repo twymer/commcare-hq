@@ -24,6 +24,7 @@ from dimagi.utils.couch.bulk import CouchTransaction
 
 from corehq.apps.cachehq.mixins import QuickCachedDocumentMixin
 from corehq.apps.fixtures.dbaccessors import (
+    iterate_fixture_items_for_data_types,
     get_fixture_data_types_in_domain,
     get_fixture_items_for_data_types,
     get_owner_ids_by_type,
@@ -444,6 +445,11 @@ class FixtureDataItem(Document):
     def by_data_types(cls, domain, data_types, bypass_cache=False):
         data_type_ids = set(_id_from_doc(d) for d in data_types)
         return get_fixture_items_for_data_types(domain, data_type_ids, bypass_cache)
+
+    @classmethod
+    def iter_by_data_types(cls, domain, data_types, bypass_cache=False):
+        data_type_ids = set(_id_from_doc(d) for d in data_types)
+        return iterate_fixture_items_for_data_types(domain, data_type_ids, bypass_cache)
 
     @classmethod
     def by_domain(cls, domain):
