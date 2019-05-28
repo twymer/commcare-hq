@@ -88,6 +88,10 @@ class ItemListsProvider(FixtureProvider):
                 return [data.replace(global_id, b_user_id)] if data else []
             except NotFound:
                 pass
+        # TODO: this should return an XML bytestring and the number of items,
+        # do everything else with strings. We don't need the object later,
+        # because we just call `tostring` on every element in this list later
+        # when generating the restore response
         global_items = self._get_global_items(global_types, domain, bypass_cache=restore_state.overwrite_cache)
         io = BytesIO()
         io.write(ITEMS_COMMENT_PREFIX)
@@ -96,6 +100,9 @@ class ItemListsProvider(FixtureProvider):
         for element in global_items:
             io.write(ElementTree.tostring(element, encoding='utf-8'))
             # change user_id AFTER writing to string for the cache
+
+            # TODO: do the find/replace in the string instead of manipulating
+            # the object (as we do on line 88 above)
             element.attrib["user_id"] = user_id
         io.seek(0)
         try:
@@ -118,6 +125,10 @@ class ItemListsProvider(FixtureProvider):
     def _get_global_items(self, global_types, domain, bypass_cache):
         items_by_type = defaultdict(list)
         # Here we pull every single item into memory
+        # TODO: instead of putting every single item into one giant list, we could iterate over each data type and return the fixture elements directly. Something like:
+        # for data_type in global_types:
+        #     for items in FixtureDataItem.iter_by_data_types(...):
+        #         self._get_fixtures(global_types, items, ...)
         for item in FixtureDataItem.iter_by_data_types(domain, global_types, bypass_cache):
             data_type = global_types[item.data_type_id]
             self._set_cached_type(item, data_type)
@@ -142,6 +153,11 @@ class ItemListsProvider(FixtureProvider):
         item._data_type = data_type
 
     def _get_fixtures(self, data_types, items_by_type, user_id):
+        # TODO: instead of returning a list of elements here, we should return
+        # well-formed XML (bytes) and the number of objects. We don't need to
+        # keep the objects around in memory just to call "tostring" on them
+        # when generating the restore file.
+
         def tag(item):
             data_type, items = item
             return data_type.tag
@@ -160,6 +176,12 @@ class ItemListsProvider(FixtureProvider):
         # i.e. in this loop, we copy each item maximum 4x times.
         # When the loop exits, we should get all of this back through GC, except for the 'fixtures' list.
         # the 'items' list might get GC'd after every iteration?
+
+        # TODO: Instead of sorting each item here in a list, we could create
+        # the XML then sort it directly like so:
+        # https://stackoverflow.com/a/25339725/2957657 This would allow us to
+        # change `items_by_type` into a generator, and we wouldn't have to
+        # store every item of the fixture in memory
         for data_type, items in sorted(list(items_by_type.items()), key=tag):
             if data_type.is_indexed:
                 fixtures.append(self._get_schema_element(data_type))
