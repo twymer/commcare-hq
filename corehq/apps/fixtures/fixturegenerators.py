@@ -147,7 +147,6 @@ class ItemListsProvider(FixtureProvider):
         def sort_key(item):
             return item.sort_key
 
-        items_by_type = dict(items_by_type)
         for data_type in data_types.values():
             if data_type not in items_by_type:
                 items_by_type[data_type] = []
