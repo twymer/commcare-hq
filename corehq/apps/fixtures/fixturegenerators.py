@@ -151,6 +151,13 @@ class ItemListsProvider(FixtureProvider):
             if data_type not in items_by_type:
                 items_by_type[data_type] = []
         fixtures = []
+
+        # this makes two copy of the all the items, for all data-types into a new list in the loop (sorted(list))
+        # then creates another copy of every item in a new list called 'items'
+        # then also creates a new object for every item and puts it into another list called 'fixtures'
+        # i.e. in this loop, we copy each item maximum 4x times.
+        # When the loop exits, we should get all of this back through GC, except for the 'fixtures' list.
+        # the 'items' list might get GC'd after every iteration?
         for data_type, items in sorted(list(items_by_type.items()), key=tag):
             if data_type.is_indexed:
                 fixtures.append(self._get_schema_element(data_type))
