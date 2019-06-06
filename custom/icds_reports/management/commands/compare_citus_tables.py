@@ -5,11 +5,31 @@ from __future__ import unicode_literals
 from difflib import context_diff
 from io import BytesIO
 
+from django.apps import apps
 from django.core.management.base import BaseCommand
 from django.db import connections
 
-from custom.icds_reports.const import DISTRIBUTED_TABLES
+ignore_models = [
+    'icdsmonths',
+    'icdsfile',
+    'aggregatesqlprofile',
+    'ucrtablenamemapping',
+    'icdsauditentryrecord',
+    'citusdashboardexception',
+    'citusdashboarddiff',
+    'citusdashboardtiming',
 
+    'aggawc',  # too big
+    'aggawcdaily',  # too big
+
+]
+
+sort_fields = {
+    'aggawc': ['state_id', 'district_id', 'block_id', 'supervisor_id', 'awc_id'],
+    'aggccsrecord': ['state_id', 'district_id', 'block_id', 'supervisor_id', 'awc_id'],
+    'aggchildhealth': ['state_id', 'district_id', 'block_id', 'supervisor_id', 'awc_id'],
+    'aggawcdaily': ['state_id', 'district_id', 'block_id', 'supervisor_id', 'awc_id'],
+}
 
 class Command(BaseCommand):
 
@@ -18,18 +38,35 @@ class Command(BaseCommand):
         parser.add_argument('monolith_alias')
 
     def handle(self, citus_alias, monolith_alias, **options):
-        for table, _ in DISTRIBUTED_TABLES:
+        app = apps.get_app_config('icds_reports')
+        for name, model in app.models.items():
+            if name in ignore_models:
+                print('Ignoring table {}'.format(name))
+                continue
+
             citus_data = BytesIO()
             monolith_data = BytesIO()
-            table_name = '{}'.format(table)
+
+            table_name = model._meta.db_table
             with connections[citus_alias].cursor() as c:
-                pk_cols = _get_table_pkey_cols(c, table_name)
-                q = 'select * from "{}" order by {}'.format(table_name, ', '.join(pk_cols))
+                c.execute('select 1 from pg_views where viewname = %s', [table_name])
+                if c.fetchone():
+                    print("Skipping view: {}".format(table_name))
+                    continue
+
+                if name in sort_fields:
+                    sort_by = sort_fields[name]
+                else:
+                    sort_by = _get_table_pkey_cols(c, table_name)
+                q = 'select * from "{}" order by {}'.format(table_name, ', '.join(sort_by))
+
                 c.copy_expert(q, citus_data)
                 citus_data.seek(0)
+
             with connections[monolith_alias].cursor() as c:
                 c.copy_expert(q, monolith_data)
                 monolith_data.seek(0)
+
             print('Diff for table {}'.format(table_name))
             diff = context_diff(citus_data.readlines(), monolith_data.readlines(), fromfile='citus', tofile='monolith')
             for d in diff:
@@ -49,4 +86,5 @@ def _get_table_pkey_cols(cursor, table_name):
     GROUP BY "table";
     """, [table_name])
 
-    return cursor.fetchone()[1]
+    row = cursor.fetchone()
+    return row[1] if row else None
