@@ -99,7 +99,7 @@ class Command(BaseCommand):
         elif group == 'views':
             model_names = VIEWS
 
-
+        print('table_name,citus_row_count,monolith_row_count')
         for name in model_names:
             model = app.models[name]
             if name in ignore_models:
@@ -133,32 +133,35 @@ class Command(BaseCommand):
 
 
 def _run_diff(table_name, qname, query, citus_alias, monolith_alias):
-    print('Diff for table {} ({})'.format(table_name, qname))
-    citus_data = BytesIO()
-    monolith_data = BytesIO()
+    with open('table_diff_{}.txt'.format(table_name), 'w') as output:
+        output.write('Diff for table {} ({})\n'.format(table_name, qname))
+        citus_data = BytesIO()
+        monolith_data = BytesIO()
 
-    with connections[citus_alias].cursor() as c:
-        try:
-            c.copy_expert('COPY ({}) TO STDOUT WITH CSV HEADER'.format(query), citus_data)
-            citus_data.seek(0)
-        except Exception as e:
-            print("\tError querying citus")
-            print("\t\t{}".format(e))
-            return
+        copy_query = 'COPY ({}) TO STDOUT WITH CSV HEADER'.format(query)
+        with connections[citus_alias].cursor() as c:
+            try:
+                c.copy_expert(copy_query, citus_data)
+                citus_data.seek(0)
+            except Exception as e:
+                print(e)
+                output.write("\tError querying citus\n")
+                output.write("\t\t{}\n".format(e))
+                return
 
-    with connections[monolith_alias].cursor() as c:
-        c.copy_expert(query, monolith_data)
-        monolith_data.seek(0)
+        with connections[monolith_alias].cursor() as c:
+            c.copy_expert(copy_query, monolith_data)
+            monolith_data.seek(0)
 
-    monolith_lines = list(monolith_data.readlines())
-    citus_lines = list(citus_data.readlines())
-    if monolith_lines or citus_lines:
-        diff = context_diff(citus_lines, monolith_lines, fromfile='citus', tofile='monolith')
-        for d in diff:
-            print(d)
-    else:
-        print('\tNo data for table {}'.format(table_name))
-    print('--------------------')
+        monolith_lines = list(monolith_data.readlines())
+        citus_lines = list(citus_data.readlines())
+        print('{},{},{}'.format(table_name, len(citus_lines), len(monolith_lines)))
+        if monolith_lines or citus_lines:
+            diff = context_diff(citus_lines, monolith_lines, fromfile='citus', tofile='monolith')
+            for d in diff:
+                output.write(d)
+        else:
+            output.write('\tNo data for table {}\n'.format(table_name))
 
 
 def _get_table_pkey_cols(cursor, table_name):
