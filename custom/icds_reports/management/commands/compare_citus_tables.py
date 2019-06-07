@@ -107,6 +107,14 @@ class Command(BaseCommand):
                 continue
 
             table_name = model._meta.db_table
+            columns = []
+            for f in model._meta.get_fields():
+                try:
+                    f_name = f.db_column or f.name
+                except AttributeError:
+                    continue
+                if f_name != 'id':
+                    columns.append(f_name)
 
             if name in sort_fields:
                 sort_by = sort_fields[name]
@@ -122,12 +130,14 @@ class Command(BaseCommand):
             if table_name in VIEWS or name in VIEWS:
                 month = datetime.utcnow().date().replace(day=1)
                 qname = 'Data for month: {}'.format(month.isoformat())
-                query = 'select * from "{}" where month = \'{}\' order by {}'.format(
-                    table_name, month.isoformat(), ', '.join(sort_by)
+                query = 'select {} from "{}" where month = \'{}\' order by {}'.format(
+                    ', '.join(columns), table_name, month.isoformat(), ', '.join(sort_by)
                 )
             else:
                 qname = 'All data'
-                query = 'select * from "{}" order by {}'.format(table_name, ', '.join(sort_by))
+                query = 'select {} from "{}" order by {}'.format(
+                    ', '.join(columns), table_name, ', '.join(sort_by)
+                )
 
             _run_diff(table_name, qname, query, citus_alias, monolith_alias)
 
