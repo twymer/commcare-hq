@@ -3,7 +3,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 from datetime import datetime
-from difflib import context_diff
+from difflib import unified_diff
 from io import BytesIO
 
 from django.apps import apps
@@ -91,7 +91,7 @@ class Command(BaseCommand):
         app = apps.get_app_config('icds_reports')
 
         if models:
-            model_names = models
+            model_names = [m.lower() for m in models]
         elif group == 'all':
             model_names = list(app.models)
         elif group == 'distributed':
@@ -99,7 +99,7 @@ class Command(BaseCommand):
         elif group == 'views':
             model_names = VIEWS
 
-        print('table_name,citus_row_count,monolith_row_count,num_diffs')
+        print('table_name,citus_row_count,monolith_row_count,num_diff_lines')
         for name in model_names:
             model = app.models[name]
             if name in ignore_models:
@@ -113,20 +113,10 @@ class Command(BaseCommand):
                     f_name = f.db_column or f.name
                 except AttributeError:
                     continue
-                if f_name != 'id':
+                if f_name not in ('id', 'awclocation_ptr'):
                     columns.append(f_name)
 
-            if name in sort_fields:
-                sort_by = sort_fields[name]
-            elif table_name in sort_fields:
-                sort_by = sort_fields[table_name]
-            else:
-                with connections[citus_alias].cursor() as c:
-                    sort_by = _get_table_pkey_cols(c, table_name)
-            if not sort_by:
-                print('Missing sort fields: {} ({})'.format(name, table_name))
-                continue
-
+            sort_by = columns  # sort by all columns
             if table_name in VIEWS or name in VIEWS:
                 month = datetime.utcnow().date().replace(day=1)
                 qname = 'Data for month: {}'.format(month.isoformat())
@@ -173,7 +163,7 @@ def _run_diff(table_name, qname, query, citus_alias, monolith_alias):
     if monolith_lines or citus_lines:
         with open('table_diff_{}_diff.txt'.format(table_name), 'w') as output:
             output.write('Diff for table {} ({})\n'.format(table_name, qname))
-            diff = list(context_diff(citus_lines, monolith_lines, fromfile='citus', tofile='monolith'))
+            diff = list(unified_diff(citus_lines, monolith_lines, fromfile='citus', tofile='monolith', n=0))
             difflen = len(diff)
             for d in diff:
                 output.write(d)
