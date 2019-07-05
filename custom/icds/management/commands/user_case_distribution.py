@@ -15,6 +15,7 @@ from casexml.apps.phone.models import SyncLogSQL, properly_wrap_sync_log
 from corehq.apps.users.dbaccessors.all_commcare_users import get_all_user_ids_by_domain
 from corehq.sql_db.util import get_db_alias_for_partitioned_doc
 
+
 def parse_date(s, default=None):
     if not s:
         return default
@@ -41,11 +42,15 @@ class Command(BaseCommand):
         writer.writerow(['user_id', 'last_sync', 'total_cases'] + db_names)
         user_ids = get_all_user_ids_by_domain(domain, include_web_users=False)
         for user_id in user_ids:
-            if since:
-                result = SyncLogSQL.objects.filter(user_id=user_id, date__gte=since).order_by('date').last()
-                synclog = properly_wrap_sync_log(result.doc) if result else None
-            else:
-                synclog = get_last_synclog_for_user(user_id)
+            try:
+                if since:
+                    result = SyncLogSQL.objects.filter(user_id=user_id, date__gte=since).order_by('date').last()
+                    synclog = properly_wrap_sync_log(result.doc) if result else None
+                else:
+                    synclog = get_last_synclog_for_user(user_id)
+            except Exception as e:
+                sys.stderr.write('{}\n'.format(e))
+                synclog = None
 
             if synclog:
                 case_ids = synclog.case_ids_on_phone
