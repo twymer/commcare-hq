@@ -38,7 +38,7 @@ class ProductsTest(TestCase):
         )
 
         self.assertEqual(
-            len(Product.by_domain(self.domain, include_archived=True)),
+            len(SQLProduct.objects.filter(domain=self.domain, is_archived=True).couch_products()),
             len(original_list)
         )
 

@@ -151,10 +151,8 @@ class Product(Document):
             return cls.get(sql_product.product_id)
 
     @classmethod
-    def by_domain(cls, domain, include_archived=False):
+    def by_domain(cls, domain):
         queryset = SQLProduct.objects.filter(domain=domain)
-        if not include_archived:
-            queryset = queryset.filter(is_archived=False)
         return list(queryset.couch_products())
 
     @classmethod
