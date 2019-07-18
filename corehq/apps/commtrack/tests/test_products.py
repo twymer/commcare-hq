@@ -21,11 +21,11 @@ class ProductsTest(TestCase):
     def test_archive(self):
         bootstrap_products(self.domain)
         products = sorted(Product.by_domain(self.domain), key=lambda p: p._id)
-        original_list = Product.by_domain(self.domain, wrap=False)
+        original_list = Product.by_domain(self.domain)
 
         products[0].archive()
 
-        new_list = Product.by_domain(self.domain, wrap=False)
+        new_list = Product.by_domain(self.domain)
 
         self.assertTrue(
             products[0]._id not in [p['_id'] for p in new_list],
@@ -38,7 +38,7 @@ class ProductsTest(TestCase):
         )
 
         self.assertEqual(
-            len(Product.by_domain(self.domain, wrap=False, include_archived=True)),
+            len(Product.by_domain(self.domain, include_archived=True)),
             len(original_list)
         )
 
@@ -51,7 +51,7 @@ class ProductsTest(TestCase):
 
         self.assertEqual(
             len(original_list),
-            len(Product.by_domain(self.domain, wrap=False))
+            len(Product.by_domain(self.domain))
         )
 
     def test_sync(self):
