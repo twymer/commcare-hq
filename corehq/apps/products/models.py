@@ -76,7 +76,7 @@ class Product(Document):
 
         domains = {doc['domain'] for doc in docs}
         for domain in domains:
-            Product.by_domain.clear(Product, domain)
+            cls.clear_caches(domain)
 
     bulk_save = save_docs
 
@@ -133,7 +133,7 @@ class Product(Document):
 
         result = super(Product, self).save(*args, **kwargs)
 
-        self.by_domain.clear(self.__class__, self.domain)
+        self.clear_caches(self.domain)
         self.sync_to_sql()
 
         return result
@@ -145,6 +145,14 @@ class Product(Document):
     @code.setter
     def code(self, val):
         self.code_ = val.lower() if val else None
+
+    @classmethod
+    def clear_caches(cls, domain):
+        from casexml.apps.phone.utils import clear_fixture_cache
+        from corehq.apps.products.fixtures import ALL_CACHE_PREFIXES
+        Product.by_domain.clear(cls, domain)
+        for prefix in ALL_CACHE_PREFIXES:
+            clear_fixture_cache(domain, prefix)
 
     @classmethod
     def get_by_code(cls, domain, code):
