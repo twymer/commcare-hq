@@ -8,6 +8,8 @@ from django.db import models
 from django.utils.translation import ugettext as _
 
 from couchdbkit.exceptions import ResourceNotFound
+
+from corehq.util.quickcache import quickcache
 from dimagi.ext.couchdbkit import (
     Document,
     StringProperty,
@@ -72,6 +74,10 @@ class Product(Document):
 
         super(Product, cls).save_docs(docs, use_uuids)
 
+        domains = {doc['domain'] for doc in docs}
+        for domain in domains:
+            Product.by_domain.clear(Product, domain)
+
     bulk_save = save_docs
 
     def sync_to_sql(self):
@@ -127,6 +133,7 @@ class Product(Document):
 
         result = super(Product, self).save(*args, **kwargs)
 
+        self.by_domain.clear(self.__class__, self.domain)
         self.sync_to_sql()
 
         return result
@@ -151,6 +158,7 @@ class Product(Document):
             return cls.get(sql_product.product_id)
 
     @classmethod
+    @quickcache(['cls.__name__', 'domain'])
     def by_domain(cls, domain):
         queryset = SQLProduct.objects.filter(domain=domain)
         return list(queryset.couch_products())

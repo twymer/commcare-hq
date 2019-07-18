@@ -83,6 +83,7 @@ def import_products(domain, importer):
         Product.bulk_save(to_save)
         for couch_product in to_save:
             couch_product.sync_to_sql()
+        Product.by_domain.clear(Product.__class__, domain)
 
     if product_count:
         results['messages'].insert(
