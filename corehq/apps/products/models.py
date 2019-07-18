@@ -272,15 +272,13 @@ class ProductQueriesMixin(object):
     def product_ids(self):
         return self.values_list('product_id', flat=True)
 
-    def couch_products(self, wrapped=True):
+    def couch_products(self):
         """
         Returns the couch products corresponding to this queryset.
         """
         ids = self.product_ids()
         products = iter_docs(Product.get_db(), ids)
-        if wrapped:
-            return map(Product.wrap, products)
-        return products
+        return map(Product.wrap, products)
 
 
 class ProductQuerySet(ProductQueriesMixin, models.query.QuerySet):
