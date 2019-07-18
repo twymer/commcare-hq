@@ -51,9 +51,6 @@ class CommtrackReportMixin(ProjectReport, ProjectReportParametersMixin, Datespan
         prods = Product.by_domain(self.domain)
         return sorted(prods, key=lambda p: p.name)
 
-    def ordered_products(self, ordering):
-        return sorted(self.products, key=lambda p: (0, ordering.index(p['name'])) if p['name'] in ordering else (1, p['name']))
-
     @property
     def actions(self):
         return sorted(action_config.name for action_config in self.config.actions)
