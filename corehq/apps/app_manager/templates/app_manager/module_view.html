@@ -21,6 +21,7 @@
   </style>
 {% endblock %}
 {% block js %}{{ block.super }}
+  <script src='{% static 'common/js/nvd3_charts_helper.js' %}'></script>
   {% compress js %}
     <script src="{% static 'hqwebapp/js/key-value-mapping.js' %}"></script>
     <script src="{% static 'app_manager/js/details/graph_config.js' %}"></script>
