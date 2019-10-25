@@ -13,10 +13,8 @@ from corehq.elastic import (
 from corehq.pillows.mappings.user_mapping import USER_INDEX, USER_INDEX_INFO
 from corehq.util.quickcache import quickcache
 from pillowtop.checkpoints.manager import get_checkpoint_for_elasticsearch_pillow
-from pillowtop.const import DEFAULT_PROCESSOR_CHUNK_SIZE
 from pillowtop.pillow.interface import ConstructedPillow
 from pillowtop.processors import ElasticProcessor, PillowProcessor
-from pillowtop.processors.elastic import BulkElasticProcessor
 from pillowtop.reindexer.change_providers.couch import CouchViewChangeProvider
 from pillowtop.reindexer.reindexer import ElasticPillowReindexer, ReindexerFactory
 
@@ -101,7 +99,7 @@ def add_demo_user_to_user_index():
 
 
 def get_user_es_processor():
-    return BulkElasticProcessor(
+    return ElasticProcessor(
         elasticsearch=get_es_new(),
         index_info=USER_INDEX_INFO,
         doc_prep_fn=transform_user_for_elasticsearch,
@@ -132,7 +130,7 @@ def get_user_pillow_old(pillow_id='UserPillow', num_processes=1, process_num=0, 
 
 
 def get_user_pillow(pillow_id='user-pillow', num_processes=1, process_num=0,
-        skip_ucr=False, processor_chunk_size=DEFAULT_PROCESSOR_CHUNK_SIZE, **kwargs):
+        skip_ucr=False, **kwargs):
     # Pillow that sends users to ES and UCR
     assert pillow_id == 'user-pillow', 'Pillow ID is not allowed to change'
     checkpoint = get_checkpoint_for_elasticsearch_pillow(pillow_id, USER_INDEX_INFO, topics.USER_TOPICS)
@@ -152,7 +150,6 @@ def get_user_pillow(pillow_id='user-pillow', num_processes=1, process_num=0,
         change_processed_event_handler=KafkaCheckpointEventHandler(
             checkpoint=checkpoint, checkpoint_frequency=100, change_feed=change_feed
         ),
-        processor_chunk_size=processor_chunk_size
     )
 
 
