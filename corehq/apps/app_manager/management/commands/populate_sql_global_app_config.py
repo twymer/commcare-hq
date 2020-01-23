@@ -7,7 +7,7 @@ from dimagi.utils.couch.database import iter_docs
 from corehq.apps.app_manager.models import (
     LATEST_APK_VALUE,
     LATEST_APP_VALUE,
-    SQLGlobalAppConfig,
+    GlobalAppConfig,
 )
 from corehq.dbaccessors.couchapps.all_docs import get_all_docs_with_doc_types, get_doc_count_by_type
 from corehq.util.couchdb_management import couch_config
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = """
-        Adds a SQLGlobalAppConfig for any GlobalAppConfig doc that doesn't yet have one.
+        Adds any missing GlobalAppConfig objects, based on equivalent couch documents.
     """
 
     def add_arguments(self, parser):
@@ -35,15 +35,15 @@ class Command(BaseCommand):
         logger.info("{}Found {} couch docs and {} sql models".format(
             log_prefix,
             get_doc_count_by_type(couch_config.get_db('apps'), 'GlobalAppConfig'),
-            SQLGlobalAppConfig.objects.count()
+            GlobalAppConfig.objects.count()
         ))
         for doc in get_all_docs_with_doc_types(couch_config.get_db('apps'), ['GlobalAppConfig']):
             log_message = "{}Created model for domain {} app {}".format(log_prefix, doc['domain'], doc['app_id'])
             if dry_run:
-                if not SQLGlobalAppConfig.objects.filter(domain=doc['domain'], app_id=doc['app_id']).exists():
+                if not GlobalAppConfig.objects.filter(domain=doc['domain'], app_id=doc['app_id']).exists():
                     logger.info(log_message)
             else:
-                model, created = SQLGlobalAppConfig.objects.get_or_create(
+                model, created = GlobalAppConfig.objects.get_or_create(
                     domain=doc['domain'],
                     app_id=doc['app_id'],
                     defaults={
