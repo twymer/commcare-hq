@@ -7,11 +7,6 @@ from django.db import migrations, models
 from corehq.util.django_migrations import skip_on_fresh_install
 
 
-@skip_on_fresh_install
-def _populate_sql_global_app_config(apps, schema_editor):
-    call_command('populate_sql_global_app_config')
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -37,7 +32,4 @@ class Migration(migrations.Migration):
             name='sqlglobalappconfig',
             unique_together=set([('domain', 'app_id')]),
         ),
-        migrations.RunPython(_populate_sql_global_app_config,
-                             reverse_code=migrations.RunPython.noop,
-                             elidable=True),
     ]
