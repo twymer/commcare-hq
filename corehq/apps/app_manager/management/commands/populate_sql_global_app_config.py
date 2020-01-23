@@ -9,7 +9,8 @@ from corehq.apps.app_manager.models import (
     LATEST_APP_VALUE,
     SQLGlobalAppConfig,
 )
-from corehq.dbaccessors.couchapps.all_docs import get_doc_ids_by_class
+from corehq.dbaccessors.couchapps.all_docs import get_all_docs_with_doc_types, get_doc_count_by_type
+from corehq.util.couchdb_management import couch_config
 
 logger = logging.getLogger(__name__)
 
@@ -31,18 +32,12 @@ class Command(BaseCommand):
     def handle(self, dry_run=False, **options):
         log_prefix = "[DRY RUN] " if dry_run else ""
 
-        try:
-            from corehq.apps.app_manager.models import GlobalAppConfig
-        except ImportError:
-            return
-
-        doc_ids = get_doc_ids_by_class(GlobalAppConfig)
-        logger.info("{}Found {} GlobalAppConfig docs and {} SQLGlobalAppConfig models".format(
+        logger.info("{}Found {} couch docs and {} sql models".format(
             log_prefix,
-            len(doc_ids),
+            get_doc_count_by_type(couch_config.get_db('apps'), 'GlobalAppConfig'),
             SQLGlobalAppConfig.objects.count()
         ))
-        for doc in iter_docs(GlobalAppConfig.get_db(), doc_ids):
+        for doc in get_all_docs_with_doc_types(couch_config.get_db('apps'), ['GlobalAppConfig']):
             log_message = "{}Created model for domain {} app {}".format(log_prefix, doc['domain'], doc['app_id'])
             if dry_run:
                 if not SQLGlobalAppConfig.objects.filter(domain=doc['domain'], app_id=doc['app_id']).exists():
