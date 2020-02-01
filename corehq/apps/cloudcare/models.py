@@ -19,6 +19,9 @@ class SQLApplicationAccess(models.Model):
     domain = models.CharField(max_length=255, null=False, unique=True)
     restrict = models.BooleanField(default=False)
 
+    class Meta(object):
+        db_table = "cloudcare_applicationaccess"
+
     def save(self, force_insert=False, force_update=False, using=DEFAULT_DB_ALIAS, update_fields=None):
         from corehq.apps.cloudcare.dbaccessors import get_application_access_for_domain
         get_application_access_for_domain.clear(self.domain)
