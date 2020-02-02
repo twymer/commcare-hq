@@ -23,8 +23,8 @@ class Migration(migrations.Migration):
                 ('diff_url', models.CharField(max_length=126, null=True)),
                 ('couch_id', models.CharField(db_index=True, max_length=126, null=True)),
             ],
-            options={
-                'db_table': 'hqadmin_hqdeploy',
-            },
+            #options={
+            #    'db_table': 'hqadmin_hqdeploy',
+            #},
         ),
     ]
