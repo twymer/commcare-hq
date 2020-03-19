@@ -1,5 +1,3 @@
-from corehq.apps.locations.models import SQLLocation
-from custom.icds_reports.tasks import icds_state_aggregation_task
 import os
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
